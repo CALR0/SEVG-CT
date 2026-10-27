@@ -47,6 +47,9 @@ function getSql(): NeonQueryFunction<false, false> {
  * Crea la tabla la primera vez que se usa. Idempotente — las subsecuentes
  * invocaciones son no-ops instantáneas.
  */
+// Postgres GENERATED columns + UNIQUE sobre generated son soportados pero
+// requieren Postgres 15+; para máxima compatibilidad guardamos month como
+// columna normal y la calculamos en app al insertar.
 async function ensureSchema(): Promise<void> {
   if (_initPromise) return _initPromise;
   const sql = getSql();
@@ -58,14 +61,14 @@ async function ensureSchema(): Promise<void> {
         manifest TEXT NOT NULL,
         id_work_order BIGINT,
         analyzed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        month TEXT GENERATED ALWAYS AS (to_char(analyzed_at AT TIME ZONE 'UTC', 'YYYY-MM')) STORED,
+        month TEXT NOT NULL,
         score_total NUMERIC(5,2),
         calificacion TEXT,
         excluded_reason TEXT,
-        trip_input JSONB NOT NULL,
-        CONSTRAINT uq_user_manifest_month UNIQUE (user_email, manifest, month)
+        trip_input JSONB NOT NULL
       )
     `;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_user_manifest_month ON analyses (user_email, manifest, month)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_analyses_user_month ON analyses (user_email, month DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_analyses_user_date ON analyses (user_email, analyzed_at DESC)`;
   })().catch((e) => {
@@ -75,15 +78,21 @@ async function ensureSchema(): Promise<void> {
   return _initPromise;
 }
 
+function monthOf(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function saveAnalysis(userEmail: string, a: SavedAnalysis): Promise<void> {
   await ensureSchema();
   const sql = getSql();
+  const month = monthOf(a.analyzedAt);
   await sql`
     INSERT INTO analyses (
-      user_email, manifest, id_work_order, analyzed_at,
+      user_email, manifest, id_work_order, analyzed_at, month,
       score_total, calificacion, excluded_reason, trip_input
     ) VALUES (
-      ${userEmail}, ${a.manifest}, ${a.idWorkOrder}, ${a.analyzedAt},
+      ${userEmail}, ${a.manifest}, ${a.idWorkOrder}, ${a.analyzedAt}, ${month},
       ${a.scoreTotal}, ${a.calificacion}, ${a.excludedReason}, ${JSON.stringify(a.tripInput)}::jsonb
     )
     ON CONFLICT (user_email, manifest, month)

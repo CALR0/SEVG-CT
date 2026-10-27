@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
     const items = await getMonth(session.email.toLowerCase(), month);
     return NextResponse.json({ ok: true, enabled: true, month, items });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    const err = e as Error;
+    console.error("[/api/history GET] DB error:", err.message, err.stack);
+    return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }
 
@@ -53,6 +55,8 @@ export async function DELETE(req: NextRequest) {
     const deleted = await deleteMonth(session.email.toLowerCase(), month);
     return NextResponse.json({ ok: true, deleted, month });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    const err = e as Error;
+    console.error("[/api/history DELETE] DB error:", err.message, err.stack);
+    return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }

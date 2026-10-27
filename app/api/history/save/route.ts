@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
     await saveAnalysis(session.email.toLowerCase(), toSave);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    const err = e as Error;
+    console.error("[/api/history/save] DB error:", err.message, err.stack);
+    return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }

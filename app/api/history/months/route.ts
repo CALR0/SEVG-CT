@@ -17,6 +17,8 @@ export async function GET() {
     const months = await listMonths(session.email.toLowerCase());
     return NextResponse.json({ ok: true, enabled: true, months });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    const err = e as Error;
+    console.error("[/api/history/months] DB error:", err.message, err.stack);
+    return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }
