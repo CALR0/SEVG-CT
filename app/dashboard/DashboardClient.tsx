@@ -13,7 +13,7 @@ import CriticalPanel from "./components/CriticalPanel";
 import MonthSelector, { type MonthSummary } from "./components/MonthSelector";
 import { evaluateTrip, parseWorkbook, tripFromBinnacle, setIgnorarVelocidad } from "@/lib/engine.js";
 import type { TripResult } from "@/lib/engine-types";
-import { binnacleToXlsxBlob, type BinnacleRow, type TripInfo } from "@/lib/binnacle-xlsx";
+import { binnacleToXlsxBlob, recordsToXlsxBlob, type BinnacleRow, type TripInfo, type ParsedRecord } from "@/lib/binnacle-xlsx";
 
 const DEFAULT_CONCURRENCY = 5;
 
@@ -43,7 +43,7 @@ type ApiEntry = {
   result: TripResult;
 };
 type FileEntry = { name: string; raw: ArrayBuffer; results: TripResult[] };
-type SavedEntry = { manifest: string; result: TripResult; analyzedAt: string };
+type SavedEntry = { manifest: string; result: TripResult; analyzedAt: string; tripInput: SavedTripInput };
 
 // Shape que /api/history/save espera (coincide con lib/db.ts SavedTripInput).
 type SavedTripInput = {
@@ -110,7 +110,7 @@ export default function DashboardClient({ user }: { user: { email: string; name?
           const result = evaluateTrip({ ...item.tripInput, records });
           result.manifest = item.manifest;
           result.key = `saved:${item.manifest}`;
-          rehydrated.push({ manifest: item.manifest, result, analyzedAt: item.analyzedAt });
+          rehydrated.push({ manifest: item.manifest, result, analyzedAt: item.analyzedAt, tripInput: item.tripInput });
         } catch (e) {
           pushLog(`${item.manifest}: no se pudo rehidratar (${(e as Error).message})`);
         }
@@ -338,18 +338,30 @@ export default function DashboardClient({ user }: { user: { email: string; name?
   }
 
   function exportZip() {
-    if (!apiEntries.length && !fileEntries.length) {
-      pushLog("ZIP: solo disponible para análisis en memoria del mes actual");
-      return;
-    }
+    if (!trips.length) return;
     const zip = new JSZip();
+    const seen = new Set<string>();
+
+    // Preferir bitácora cruda si está en memoria (export con el mismo formato
+    // que Control T da desde la UI). Fallback: reconstruir el .xlsx desde los
+    // records parseados que guardamos en la BD.
     for (const e of apiEntries) {
-      const blob = binnacleToXlsxBlob(e.binnacleRaw, { info: e.info, manifest: e.manifest });
-      zip.file(`api/bitacora_${e.manifest}.xlsx`, blob);
+      zip.file(`bitacora_${e.manifest}.xlsx`,
+        binnacleToXlsxBlob(e.binnacleRaw, { info: e.info, manifest: e.manifest }));
+      seen.add(e.manifest);
     }
-    for (const f of fileEntries) zip.file(`locales/${f.name}`, f.raw);
+    for (const f of fileEntries) {
+      zip.file(`locales/${f.name}`, f.raw);
+    }
+    for (const s of savedEntries) {
+      if (seen.has(s.manifest)) continue;
+      zip.file(`bitacora_${s.manifest}.xlsx`,
+        recordsToXlsxBlob(s.tripInput.records as unknown as ParsedRecord[], {
+          manifest: s.manifest, placa: s.tripInput.placa, conductor: s.tripInput.conductor,
+        }));
+    }
     zip.generateAsync({ type: "blob" }).then((blob) => {
-      triggerDownload(blob, `SEGV-CT_bitacoras_${stamp()}.zip`);
+      triggerDownload(blob, `SEGV-CT_${selectedMonth}_bitacoras.zip`);
     });
   }
 

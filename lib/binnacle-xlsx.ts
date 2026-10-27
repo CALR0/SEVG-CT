@@ -113,3 +113,58 @@ export function binnacleToXlsxBlob(rows: BinnacleRow[], opts: BuildOptions = {})
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
   return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
+
+// Para viajes recuperados de la BD (donde no tenemos el JSON crudo de la API,
+// pero sí los `records` ya parseados) — reconstruye un .xlsx compatible con
+// el motor v8.8 a partir del input que guardamos.
+export type ParsedRecord = {
+  viaje?: string;
+  ubic?: string;
+  tAt?: Date | string | null;
+  tNov?: Date | string | null;
+  tipo?: string;
+  alarma?: string;
+  atendida?: string;
+  gestion?: string;
+};
+
+function fmtDate(v: Date | string | null | undefined): string {
+  if (!v) return "";
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(+d)) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+export function recordsToXlsxBlob(
+  records: ParsedRecord[],
+  meta: { manifest: string; placa?: string; conductor?: string }
+): Blob {
+  const header = [
+    "No. Viaje", "Placa", "Conductor", "Tipo de novedad",
+    "Fecha-Hora Novedad", "Fecha-Hora Atención",
+    "Alarma", "Atendida por", "Gestión",
+    "Descripción de la ubicación",
+  ];
+  const data = records.map((r) => [
+    r.viaje || meta.manifest,
+    meta.placa || "",
+    meta.conductor || "",
+    r.tipo || "",
+    fmtDate(r.tNov),
+    fmtDate(r.tAt),
+    r.alarma || "",
+    r.atendida || "",
+    (r.gestion || "").replace(/\r?\n/g, " "),
+    r.ubic || "",
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  ws["!cols"] = [
+    { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 26 }, { wch: 20 }, { wch: 20 },
+    { wch: 22 }, { wch: 24 }, { wch: 60 }, { wch: 40 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Bitácora");
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
