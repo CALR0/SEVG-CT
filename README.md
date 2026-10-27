@@ -1,204 +1,127 @@
-# SEGV-CT · Seguimiento y Evaluación de Viajes Finalizados
+# SEGV-CT
 
-Webapp Next.js que automatiza el análisis de trazabilidad de viajes finalizados en ControlT. Centraliza la descarga de bitácoras, aplica el motor de evaluación **v8.8** (portado 1:1 desde el dashboard HTML original) y presenta los resultados con las secciones del original pero rediseñados.
+Webapp para analizar bitácoras de viajes finalizados en ControlT. Pegas manifiestos o importas `.xlsx`, el motor v8.8 evalúa trazabilidad, resultado se guarda por mes en Postgres y queda disponible aunque cierres sesión.
 
-> **Estado**: funcional. Login + análisis por manifiesto + importación `.xlsx` + 5 paneles del HTML + exportes. Pendiente desplegar en Vercel.
-
----
-
-## Resumen rápido
-
-| | |
-|---|---|
-| **Nombre** | SEGV-CT |
-| **Stack** | Next.js 14 (App Router) + TypeScript + Tailwind + SheetJS + JSZip |
-| **Motor de análisis** | v8.8 portado desde `docs/legacy/dashboard_trazabilidad_v8_8_carpeta.html` |
-| **Backend auth** | Proxy a `app.controlt.com.co` |
-| **Backend datos** | Proxy a `reports-api.controlt.io` |
-| **Dónde corre** | Vercel (o cualquier Node 20+) |
-| **Persistencia** | Neon Postgres (opcional — modo memoria si falta `DATABASE_URL`) |
-
-## Estructura del repositorio
-
-```
-SEVG-CT/                                   ← raíz del repo
-├── README.md                              ← este archivo
-├── context_project.md                     ← estado técnico detallado
-├── app/                                   Rutas (App Router)
-│   ├── layout.tsx                         Shell HTML + fuentes + bootstrap de tema
-│   ├── page.tsx                           Redirige a /login o /dashboard
-│   ├── login/                             Formulario de inicio de sesión
-│   ├── dashboard/
-│   │   ├── page.tsx                       Server component (guard de sesión)
-│   │   ├── DashboardClient.tsx            Orquestador en cliente
-│   │   └── components/                    Paneles 1-5, modal, tabla, input
-│   └── api/                               Rutas de servidor (proxy a ControlT)
-│       ├── auth/{login,logout,me}
-│       ├── trips/{resolve,binnacle/[id]}
-│       └── history/{save,months,[GET,DELETE]}   Persistencia mensual (Neon)
-├── components/                            Header, iconos, hook de tema
-├── lib/
-│   ├── engine.js                          Motor v8.8 (portado del HTML)
-│   ├── engine.d.ts                        Tipado para engine.js
-│   ├── engine-types.ts                    Tipos TripResult, Finding, etc.
-│   ├── controlt.ts                        Cliente de ControlT (cifrado de sesión)
-│   ├── binnacle-xlsx.ts                   JSON → .xlsx con el mismo formato del export manual
-│   ├── db.ts                              Cliente Neon + queries + auto-schema
-│   └── rate-limit.ts                      Limitador por IP
-├── middleware.ts                          Headers de seguridad + guard de rutas
-├── public/
-│   └── robots.txt                         No indexar (webapp interna)
-├── vercel.json                            Config de despliegue + headers extra
-├── next.config.js                         poweredByHeader off, compresión, etc.
-├── tailwind.config.ts
-├── tsconfig.json
-├── package.json
-└── docs/
-    └── legacy/
-        ├── dashboard_trazabilidad_v8_8_carpeta.html   HTML original de referencia
-        └── bitacora_0101224058.xlsx                   Bitácora de muestra
-```
+**Stack**: Next.js 14 (App Router) · TypeScript · Tailwind · SheetJS · Neon Postgres · Vercel.
 
 ---
 
 ## Cómo funciona
 
-### Flujo del usuario
-
-1. **Login** (`/login`) con usuario/contraseña de ControlT.
-2. **Dashboard** (`/dashboard`): pega una lista de manifiestos **o** arrastra bitácoras `.xlsx` **o** combina ambos.
-3. **Analizar**: el servidor resuelve cada manifiesto a su `idWorkOrder`, descarga el JSON de la bitácora, lo convierte a la estructura del motor y evalúa el viaje.
-4. **Resultados**: 5 paneles idénticos al HTML original + modal detallado por viaje.
-5. **Exportar**: `.xlsx` consolidado con ranking + hallazgos, o ZIP con las bitácoras individuales en formato compatible con el export manual de ControlT.
-
-### Comunicación entre frontend y backend
-
 ```
-┌─────────────────────┐     ┌─────────────────────────┐     ┌───────────────────────┐
-│ Navegador (React)   │────▶│ API routes de Next      │────▶│ ControlT (API)        │
-│  - Formulario login │     │  - /api/auth/login      │     │  app.controlt.com.co  │
-│  - Pegar manifiestos│◀────│  - /api/trips/resolve   │◀────│  reports-api.         │
-│  - Importar xlsx    │     │  - /api/trips/binnacle/*│     │     controlt.io       │
-└─────────────────────┘     └─────────────────────────┘     └───────────────────────┘
-       ▲                             │
-       │                             │ Set-Cookie: ct_session (HttpOnly, cifrada AES-GCM)
-       │                             │
-       └─────────────────────────────┘
+Browser ──► Next API routes ──► ControlT API
+                │
+                ├─ /api/auth/*          Login proxy, JWT sellado en cookie HttpOnly
+                ├─ /api/trips/*         Resolver manifiesto → id, bajar bitácora JSON
+                └─ /api/history/*       Persistencia Neon (opcional)
 ```
 
-**Importante**: el navegador **nunca** ve el JWT de ControlT. Las llamadas a `reports-api.controlt.io` las hace el servidor de Next, que lee la cookie sellada, extrae el JWT y lo pone en el header `Authorization` del fetch saliente.
+- El JWT de ControlT nunca llega al navegador. Vive cifrado (AES-GCM) en la cookie `ct_session`.
+- Motor en `lib/engine.js` — portado 1:1 del dashboard HTML original (ver `docs/legacy/`). No se reescribe para no divergir.
+- Dos fuentes alimentan al mismo `evaluateTrip`: JSON de la API (`tripFromBinnacle`) y `.xlsx` locales (`parseWorkbook`).
+- Guardamos el **input** del motor (records parseados), no el output. Reevaluar aplica reglas vigentes a datos históricos sin migración.
 
-### Endpoints de ControlT que usamos
+## Persistencia
 
-| Método | URL | Uso |
-|---|---|---|
-| `GET`  | `/apipublic/api/login?email=…` | Discovery (password vs. OAuth) |
-| `POST` | `/apipublic/api/login/oauth` | Login usuario/password → JWT |
-| `GET`  | `/Tracking/AllFinished/ByIdCompany/{idCompany}/1/10?search={manifiesto}` | Resolver manifiesto → `idWorkOrder` |
-| `GET`  | `/Binnacle/{idWorkOrder}?size=0&page=0` | Bitácora completa (JSON) |
-| `GET`  | `/Tracking/InformationTracking/Finished/ByIdTracking/{id}` | Datos del viaje (placa, conductor, etc.) |
+Opcional. Si no está `DATABASE_URL`, la webapp funciona en modo memoria (sesión actual).
 
-Todas son **solo lectura**. La webapp jamás escribe en ControlT.
+Con Neon activo:
+- Cada análisis hace UPSERT en `analyses` keyed por `(user_email, manifest, month)`.
+- Dashboard carga el mes actual al montar; selector arriba permite ver meses pasados.
+- "Limpiar mes X" aparece solo en meses pasados (doble confirmación).
+- Cambiar el toggle de velocidad reevalúa en vivo todos los viajes del mes cargado.
 
-### Motor de evaluación
+Volumen: ~30 MB/mes por supervisor. Neon free (500 MB) aguanta ~16 meses sin tocar nada.
 
-Está en `lib/engine.js`, portado 1:1 desde el bloque `/*ENGINE_START*/.../*ENGINE_END*/` del HTML original (`docs/legacy/dashboard_trazabilidad_v8_8_carpeta.html`, líneas 56–540). Decisión intencional: **no reescribir las reglas** para no divergir del comportamiento del HTML.
+## Rutas API
 
-Exporta:
-- `parseWorkbook(wb, filename, XLSX)` — para bitácoras importadas `.xlsx` locales.
-- `tripFromBinnacle(binnacle, info, manifest)` — para JSON de la API; adapta los campos (`type_novelty → tipo`, `date_attend_ct → tAt`, etc.) a la **misma** estructura que `parseWorkbook`.
-- `evaluateTrip(trip)` — el motor único.
-- `calificacion`, `accionesDe`, `setIgnorarVelocidad`, `TAG_LABEL`, `ACCIONES`, `CRIT`, `GN`, `MARK_LABEL`.
-
-Ambos caminos (JSON API y .xlsx local) terminan en `evaluateTrip`, garantizando paridad.
-
-### Paneles
-
-| # | Nombre | Qué muestra |
-|---|---|---|
-| 1 | **Resumen general** | KPIs totales + distribución por calificación + promedio por criterio |
-| 2 | **Ranking de viajes** | Tabla filtrable y paginada con los 4 criterios + hallazgos cortos; excluidos aparte |
-| 3 | **Desempeño por operario** | Marcas faltantes + tarjeta por operario con responsabilidades |
-| 4 | **Análisis por criterio** | Promedio por criterio + frecuencia de hallazgos |
-| 5 | **Hallazgos críticos transversales** | Patrones del equipo + alarmas de riesgo + viajes sin marcas + cierres prematuros |
-
----
-
-## Seguridad
-
-| Capa | Mitigación |
+| | |
 |---|---|
-| Credenciales en tránsito | HTTPS obligatorio en Vercel (HSTS 2 años + preload) |
-| JWT en el navegador | **No llega al navegador**. Vive sellado dentro de una cookie `HttpOnly`, `Secure`, `SameSite=Lax`. |
-| Sellado de cookie | AES-GCM con PBKDF2 (100k iteraciones, SHA-256) usando `SESSION_SECRET` |
-| CSRF | `SameSite=Lax` + POST a mismo origen. Las rutas `/api/*` no aceptan GET para mutaciones. |
-| Clickjacking | `X-Frame-Options: DENY`, CSP `frame-ancestors 'none'` |
-| XSS | CSP estricta (`default-src 'self'`), `X-Content-Type-Options: nosniff`, no uso de `dangerouslySetInnerHTML` con datos externos |
-| MITM | HSTS `max-age=63072000; includeSubDomains; preload` |
-| Fuerza bruta de login | Rate limit 10 intentos/10 min por IP (`lib/rate-limit.ts`) |
-| Abuso de API | Validación de forma + tope de 200 manifiestos/lote; `/api/trips/*` requiere cookie de sesión (middleware) |
-| Fingerprinting | `X-Powered-By` deshabilitado |
-| Indexación | `robots.txt` denegando toda ruta |
-| Permisos de navegador | `Permissions-Policy` denegando cámara, mic, geo, FLoC |
-| Logs | Nunca registramos contraseñas ni JWT completos. Logs del cliente usan `localStorage` y se limpian al cerrar sesión. |
+| `POST /api/auth/login` | Proxy a `app.controlt.com.co/apipublic/api/login/oauth`. Rate limit 10/10min por IP. |
+| `POST /api/auth/logout` | Limpia cookie |
+| `GET  /api/trips/resolve` | Manifiesto → `idWorkOrder`. Máx 200 por lote |
+| `GET  /api/trips/binnacle/[id]` | Bitácora JSON + info del viaje |
+| `POST /api/history/save` | UPSERT análisis |
+| `GET  /api/history?month=YYYY-MM` | Lista análisis del mes |
+| `DELETE /api/history?month=YYYY-MM` | Borra el mes |
+| `GET  /api/history/months` | Meses con datos (alimenta el selector) |
 
-### Buenas prácticas operativas
-
-- **`SESSION_SECRET`** debe ser una cadena aleatoria de **≥32 caracteres** (`openssl rand -base64 48` o similar) y nunca commitearse.
-- **Rotar `SESSION_SECRET`** cada 90 días o inmediatamente si hay sospecha de compromiso (invalida todas las cookies).
-- **Monitorear** fallos 401/429 en los logs de Vercel.
-- Para múltiples usuarios/empresas, cada quien entra con su propia cuenta ControlT; **nunca compartir credenciales**.
-- **No habilitar OAuth Microsoft** hasta implementar el callback correctamente (fuera de alcance de la v1).
-
----
-
-## Persistencia mensual (Neon Postgres)
-
-**Opcional**: la webapp funciona sin ella (modo memoria durante la sesión).
-Al activar `DATABASE_URL`, cada viaje analizado se guarda en Postgres y queda
-disponible para consultar y filtrar mes a mes, incluso tras cerrar sesión o
-cambiar de equipo.
-
-**Setup en Vercel (una vez)**:
-
-1. Dashboard de Vercel → tu proyecto → **Storage** → **Create Database** → **Neon**.
-2. Nombre: `segv-ct-db` (o lo que prefieras). Región: la más cercana.
-3. Vercel inyecta `DATABASE_URL` automáticamente en las 3 environments.
-4. Redeploy. En el próximo análisis el esquema se crea solo (idempotente).
-
-**Comportamiento**:
-- Mes **actual**: puedes pegar manifiestos o importar `.xlsx`. Cada análisis se guarda al momento.
-- Meses **pasados**: el selector arriba del dashboard los muestra; clic → ves y exportas lo del mes.
-- Botón **Limpiar mes X** aparece solo cuando miras un mes pasado (doble confirmación).
-- Al cambiar la casilla "No castigar exceso de velocidad", todos los viajes se **re-evalúan** con la regla nueva (incluidos los guardados).
-
-**Volumen esperado**: ~30 MB/mes para 1 supervisor con 50 viajes/día. El tier gratis de Neon (500 MB · 190h compute/mes · sin tarjeta) aguanta más de un año sin tocar nada.
-
----
-
-## Despliegue en Vercel
-
-Ver instrucciones completas al final de `context_project.md`. Resumen:
-
-```bash
-# En vercel.com → New Project → Import https://github.com/CALR0/SEVG-CT
-#    - Root Directory: ./        (dejar el default)
-#    - Framework: Next.js (auto)
-#    - Environment Variables:
-#        SESSION_SECRET = <cadena aleatoria ≥32 chars>
-#
-# Deploy. La URL quedará disponible.
-```
-
----
+Todas (salvo `/api/auth/login` y `/api/auth/logout`) exigen cookie de sesión — enforce vía `middleware.ts`.
 
 ## Correr local
 
 ```bash
-cp .env.example .env.local
-# edita .env.local y define SESSION_SECRET
+cp .env.example .env.local      # añade SESSION_SECRET y DATABASE_URL
 npm install
-npm run dev        # http://localhost:3000
+npm run dev                     # http://localhost:3000
 ```
 
-Si cambias `SESSION_SECRET`, las cookies previas quedan inválidas y los usuarios deben re-logearse (comportamiento esperado).
+Si no pones `DATABASE_URL`, el histórico queda deshabilitado pero el resto corre normal (modo memoria).
+
+Para probar con la BD de producción local:
+```bash
+vercel env pull .env.local --environment=production
+```
+
+## Variables de entorno
+
+| | | |
+|---|---|---|
+| `SESSION_SECRET` | **requerida** | Cadena aleatoria ≥32 chars. Deriva la llave AES-GCM. Rotarla invalida todas las cookies. |
+| `DATABASE_URL` | opcional | Postgres (inyectada por Neon integration). Sin ella, histórico off. |
+| `CONTROLT_AUTH_BASE` | opcional | Default `https://app.controlt.com.co` |
+| `CONTROLT_REPORTS_BASE` | opcional | Default `https://reports-api.controlt.io` |
+| `CONTROLT_TZ` | opcional | Default `America/Bogota` |
+
+## Deploy en Vercel
+
+1. Vercel → New Project → Import `CALR0/SEVG-CT`. Root `./`, framework Next.js (auto).
+2. Environment Variables → añade `SESSION_SECRET` (generar con `openssl rand -base64 48`).
+3. Deploy.
+4. Para persistencia: Storage → Create → Neon → connect al proyecto (prefix vacío, Production marcado). Redeploy con `--force` para tomar la var.
+
+Dominio custom se agrega en Settings → Domains.
+
+## Seguridad
+
+- Headers vía `middleware.ts`: CSP estricta, HSTS 2 años, X-Frame-Options DENY, Permissions-Policy restrictiva, `X-Powered-By` off.
+- Rate limit por IP en login (`lib/rate-limit.ts`).
+- Validación de inputs en API routes (regex + length cap).
+- Scope por `user_email` en todas las queries → aislamiento entre supervisores.
+- `robots.txt` deniega indexación.
+
+## Estructura
+
+```
+app/
+  api/{auth,trips,history}/   Rutas de servidor
+  dashboard/
+    DashboardClient.tsx       Orquestador cliente
+    components/               Paneles 1-5, modal, selector de mes
+  login/                      Pantalla de login
+components/                   Header, iconos, hook de tema
+lib/
+  engine.{js,d.ts}            Motor v8.8 + tipos
+  engine-types.ts             TripResult, Finding, etc.
+  controlt.ts                 Cliente ControlT + sellado de sesión
+  db.ts                       Cliente Neon + schema auto-init
+  binnacle-xlsx.ts            Serializadores a .xlsx
+  rate-limit.ts               Limitador por IP
+middleware.ts                 Headers + guard de rutas
+docs/legacy/                  HTML v8.8 original de referencia
+```
+
+## Decisiones de diseño
+
+- **Motor en JS, no TS**: evitar divergencia con el HTML original. Tipado en `.d.ts` separado.
+- **Guardar input, no output**: una nueva versión del motor (v8.9) reevalúa el histórico sin migración.
+- **Sin ORM**: SQL directo con `@neondatabase/serverless`. 4 queries en total, no justifica Prisma.
+- **Sin tests**: por ahora. Pendiente: snapshot de `evaluateTrip` con bitácoras de referencia.
+- **No OAuth Microsoft**: solo password. Si una empresa lo necesita, implementar el flow de Cognito.
+
+## Pendientes
+
+- Snapshot tests del motor.
+- Export PDF del consolidado.
+- Caché en IndexedDB para evitar refetch de bitácoras recientes.
+- Soporte OAuth Microsoft.
