@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "ct_session";
 
-const PROTECTED_API_PREFIX = "/api/trips";
+const PROTECTED_API_PREFIXES = ["/api/trips", "/api/history"];
 const PROTECTED_PAGES = ["/dashboard"];
 const PUBLIC_API = new Set(["/api/auth/login", "/api/auth/logout", "/api/auth/me"]);
 
@@ -67,7 +67,7 @@ export function middleware(req: NextRequest) {
   }
 
   // Protected API: return 401 JSON rather than redirect.
-  if (pathname.startsWith(PROTECTED_API_PREFIX) && !hasSession) {
+  if (PROTECTED_API_PREFIXES.some((p) => pathname.startsWith(p)) && !hasSession) {
     return applyHeaders(
       NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     );

@@ -16,6 +16,7 @@ Webapp Next.js que automatiza el análisis de trazabilidad de viajes finalizados
 | **Backend auth** | Proxy a `app.controlt.com.co` |
 | **Backend datos** | Proxy a `reports-api.controlt.io` |
 | **Dónde corre** | Vercel (o cualquier Node 20+) |
+| **Persistencia** | Neon Postgres (opcional — modo memoria si falta `DATABASE_URL`) |
 
 ## Estructura del repositorio
 
@@ -33,7 +34,8 @@ SEVG-CT/                                   ← raíz del repo
 │   │   └── components/                    Paneles 1-5, modal, tabla, input
 │   └── api/                               Rutas de servidor (proxy a ControlT)
 │       ├── auth/{login,logout,me}
-│       └── trips/{resolve,binnacle/[id]}
+│       ├── trips/{resolve,binnacle/[id]}
+│       └── history/{save,months,[GET,DELETE]}   Persistencia mensual (Neon)
 ├── components/                            Header, iconos, hook de tema
 ├── lib/
 │   ├── engine.js                          Motor v8.8 (portado del HTML)
@@ -41,6 +43,7 @@ SEVG-CT/                                   ← raíz del repo
 │   ├── engine-types.ts                    Tipos TripResult, Finding, etc.
 │   ├── controlt.ts                        Cliente de ControlT (cifrado de sesión)
 │   ├── binnacle-xlsx.ts                   JSON → .xlsx con el mismo formato del export manual
+│   ├── db.ts                              Cliente Neon + queries + auto-schema
 │   └── rate-limit.ts                      Limitador por IP
 ├── middleware.ts                          Headers de seguridad + guard de rutas
 ├── public/
@@ -146,6 +149,30 @@ Ambos caminos (JSON API y .xlsx local) terminan en `evaluateTrip`, garantizando 
 - **Monitorear** fallos 401/429 en los logs de Vercel.
 - Para múltiples usuarios/empresas, cada quien entra con su propia cuenta ControlT; **nunca compartir credenciales**.
 - **No habilitar OAuth Microsoft** hasta implementar el callback correctamente (fuera de alcance de la v1).
+
+---
+
+## Persistencia mensual (Neon Postgres)
+
+**Opcional**: la webapp funciona sin ella (modo memoria durante la sesión).
+Al activar `DATABASE_URL`, cada viaje analizado se guarda en Postgres y queda
+disponible para consultar y filtrar mes a mes, incluso tras cerrar sesión o
+cambiar de equipo.
+
+**Setup en Vercel (una vez)**:
+
+1. Dashboard de Vercel → tu proyecto → **Storage** → **Create Database** → **Neon**.
+2. Nombre: `segv-ct-db` (o lo que prefieras). Región: la más cercana.
+3. Vercel inyecta `DATABASE_URL` automáticamente en las 3 environments.
+4. Redeploy. En el próximo análisis el esquema se crea solo (idempotente).
+
+**Comportamiento**:
+- Mes **actual**: puedes pegar manifiestos o importar `.xlsx`. Cada análisis se guarda al momento.
+- Meses **pasados**: el selector arriba del dashboard los muestra; clic → ves y exportas lo del mes.
+- Botón **Limpiar mes X** aparece solo cuando miras un mes pasado (doble confirmación).
+- Al cambiar la casilla "No castigar exceso de velocidad", todos los viajes se **re-evalúan** con la regla nueva (incluidos los guardados).
+
+**Volumen esperado**: ~30 MB/mes para 1 supervisor con 50 viajes/día. El tier gratis de Neon (500 MB · 190h compute/mes · sin tarjeta) aguanta más de un año sin tocar nada.
 
 ---
 
