@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard de Trazabilidad Vehicular</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f6fb;--card:#fff;--ink:#162235;--muted:#64748b;--line:#dce4ee;--blue:#2458a6;--teal:#138a80;--red:#c53b48;--amber:#b97813;--green:#18835b;--navy:#13263f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{background:linear-gradient(120deg,#13263f,#2458a6);color:#fff;padding:25px clamp(16px,4vw,42px)}h1{margin:0 0 5px;font-size:clamp(22px,3vw,32px)}header p{margin:0;color:#dce8fa;max-width:1100px}
+main{max-width:1600px;margin:auto;padding:20px clamp(12px,3vw,32px) 50px}.filters,.panel,.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end;padding:14px;margin-bottom:18px}label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px;font-weight:700}
+select,input{font:inherit;border:1px solid #cbd6e3;border-radius:8px;padding:9px 10px;background:white;color:var(--ink);min-width:155px}button{border:0;border-radius:8px;background:var(--blue);color:#fff;padding:10px 13px;font-weight:700;cursor:pointer}.secondary{background:#e9eef5;color:#26364c}button:disabled{opacity:.45;cursor:default}
+.folder{align-items:center}.folder .status{flex:1;min-width:220px;font-size:12px;color:var(--muted)}.folder .status b{color:var(--ink)}.inline{flex-direction:row;align-items:center;gap:6px}.inline select{min-width:0;padding:6px 8px}.inline input{min-width:0}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#94a3b8;margin-right:6px;vertical-align:middle}.dot.on{background:var(--green);box-shadow:0 0 0 3px #d9f5e8}
+.panel{padding:17px;margin:18px 0;overflow:hidden}.head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:12px}.head h2{font-size:19px;margin:0}.sub{color:var(--muted);font-size:12px}.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.kpi{padding:15px}.kpi .n{font-size:25px;font-weight:800;letter-spacing:-.5px}.kpi .l{font-size:12px;color:var(--muted);font-weight:700}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.bars{display:grid;gap:9px}.barrow{display:grid;grid-template-columns:minmax(110px,190px) 1fr 55px;gap:8px;align-items:center}.barbg{height:12px;background:#e8edf4;border-radius:99px;overflow:hidden}.bar{height:100%;border-radius:99px;background:var(--blue)}.bar.good{background:var(--green)}.bar.warn{background:var(--amber)}.bar.bad{background:var(--red)}
+h3{font-size:15px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left}th{background:#f7f9fc;color:#526176;position:sticky;top:0;z-index:1}tbody tr:hover{background:#f8fbff}.tablewrap{overflow:auto;max-height:490px;border:1px solid var(--line);border-radius:10px}.pill{display:inline-block;padding:3px 7px;border-radius:99px;font-size:11px;font-weight:800}.Excelente,.Bueno{background:#d9f5e8;color:#126b49}.Regular{background:#fff0cc;color:#885500}.Deficiente,.Crítico{background:#ffe0e2;color:#a52632}.Muydeficiente{background:#f5d7ff;color:#722b8a}.excluded{background:#e8edf4;color:#526176}.muted{color:var(--muted)}.notice{border-left:4px solid var(--amber);padding:10px 12px;background:#fff8e8;border-radius:7px;color:#6d4b0a;font-size:12px;margin:10px 0}.goodnote{border-left:4px solid var(--teal);padding:10px 12px;background:#eafaf7;border-radius:7px;color:#155e59;font-size:12px;margin:10px 0}.small{font-size:11px;color:var(--muted)}.operator-card{border:1px solid var(--line);border-radius:10px;padding:12px;margin:8px 0}.operator-card h3{margin:0 0 6px;font-size:14px}.tags{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}.tag{background:#eef3f9;padding:3px 7px;border-radius:6px;font-size:11px}.score{font-weight:800}.best{box-shadow:inset 4px 0 #18835b}.worst{box-shadow:inset 4px 0 #c53b48}.excludedrow{background:#f0f2f5;color:#6b7280}.foot{color:var(--muted);font-size:11px;margin-top:20px}
+td.wrap{white-space:normal;min-width:240px;max-width:420px}tr.click{cursor:pointer}tr.click:hover td{background:#eef4ff}
+.opgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}.opgrid .operator-card{margin:0}
+.crit-list{display:grid;gap:8px}.crit-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px}.crit-item b{display:block;margin-bottom:3px}.link{color:var(--blue);cursor:pointer;text-decoration:underline}
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}.empty b{color:var(--ink)}
+/* Tarjeta de viaje */
+.modal{position:fixed;inset:0;background:rgba(19,38,63,.55);display:none;align-items:flex-start;justify-content:center;padding:20px 12px;overflow:auto;z-index:10}.modal.on{display:flex}
+.sheet{background:var(--bg);border-radius:14px;max-width:1150px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.banner{padding:18px 22px;color:#fff;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}.banner .big{font-size:36px;font-weight:800;line-height:1}
+.sheet .body{padding:16px}.ccard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}.ccard .top{display:flex;justify-content:space-between;align-items:baseline}.ccard .sc{font-size:20px;font-weight:800}
+.find{margin:5px 0;font-size:13px}.act{border-left:4px solid var(--line);padding:7px 10px;margin:6px 0;background:var(--card);border-radius:0 8px 8px 0;font-size:13px}.act.c0{border-color:var(--red)}.act.c1{border-color:#e8701a}.act.c2{border-color:var(--amber)}.act.c3{border-color:var(--green)}
+.closex{background:rgba(255,255,255,.2)}.badge{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--blue);color:#fff;margin-left:4px}
+details summary{cursor:pointer;font-weight:700;margin:4px 0}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.grid2{grid-template-columns:1fr}.barrow{grid-template-columns:110px 1fr 42px}.opgrid{grid-template-columns:1fr}}@media(max-width:500px){.kpis{grid-template-columns:1fr}.kpi .n{font-size:21px}select,input{min-width:0;width:100%}label{flex:1 1 140px}}
+</style></head>
+<body>
+<header><h1>Dashboard de trazabilidad vehicular · v8.8</h1><p>Evaluación por viaje y operario a partir de las bitácoras .xlsx de una carpeta de tu equipo. La fecha-hora de atención es la referencia principal y los registros automáticos no se atribuyen al personal.</p></header>
+<main>
+<div class="filters folder">
+<button id="btnPick">📂 Elegir carpeta</button>
+<button id="btnReconnect" class="secondary" style="display:none"></button>
+<button id="btnRescan" class="secondary" disabled>🔄 Actualizar ahora</button>
+<label class="inline" title="Mientras esté marcada, el exceso de velocidad bien gestionado cuenta como válido y el mal gestionado no se castiga"><input type="checkbox" id="velOff"> No castigar exceso de velocidad</label>
+<label class="inline"><input type="checkbox" id="auto" checked> Consultar la carpeta cada <select id="autoMin"><option>2</option><option selected>5</option><option>15</option><option>30</option></select> min</label>
+<span class="status" id="status"><span class="dot"></span>Sin carpeta seleccionada</span>
+<input type="file" id="fallback" webkitdirectory multiple style="display:none">
+</div>
+<div class="filters">
+<label>Viaje<select id="fTrip"><option value="">Todos los viajes</option></select></label>
+<label>Operario<select id="fOp"><option value="">Todos los operarios</option></select></label>
+<label>Calificación<select id="fGrade"><option value="">Todas</option><option>Excelente</option><option>Bueno</option><option>Regular</option><option>Deficiente</option><option>Muy deficiente</option><option>Excluido</option></select></label>
+<label>Buscar texto<input id="fText" placeholder="Novedad, alarma, gestión…"></label>
+<button id="reset" class="secondary">Restablecer filtros</button><button id="csv">Exportar ranking CSV</button>
+</div>
+<div id="app"></div>
+</main>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<script>
+/*ENGINE_START*/
+const CONFIG = {
+  version: 'v8.2',
+  retrasoMin: 60,
+  sec: { bloque:4, bloqueCap:12, duplicada:2, duplicadaCap:6, duracion0:4, tipoIncorrecto:3, tipoIncorrectoCap:9,
+         orden:3, retraso:2, retrasoCap:6, salidaDest:2, fallaSinFin:3, tiemposOp:2, posteriorVF:2, posteriorVFCap:4 },
+  ala: { parcial:3, parcialGrave:4, sin:6, sinGrave:7 }, // referencia; el puntaje de alarmas es proporcional
+  ignorarVelocidad: true,   // lote actual: exceso de velocidad no se califica (se cambia con la casilla del dashboard)
+  cierre: [ [60,25], [120,12.5], [Infinity,6.25] ]   // 60 min permitidos para el cierre
+};
+
+const norm = s => String(s ?? '').replace(/_x000d_/gi,' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+
+function serialToDate(n){
+  const d = new Date(Math.round((n - 25569) * 86400000));
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
+}
+function toDate(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === 'number') return (v > 20000 && v < 80000) ? serialToDate(v) : null;
+  const s = norm(v).replace(/\./g,'');
+  let m, y, mo, d, h=0, mi=0, se=0;
+  if ((m = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/))) { y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else if ((m = s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})/))) { d=+m[1]; mo=+m[2]; y=+m[3]; if (y<100) y+=2000; if (mo>12 && d<=12) [d,mo]=[mo,d]; }
+  else return null;
+  const t = s.slice(m.index + m[0].length).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a ?m|p ?m)?/);
+  if (t) { h=+t[1]; mi=+t[2]; se=+(t[3]||0); if (t[4]) { const pm = t[4][0]==='p'; if (pm && h<12) h+=12; if (!pm && h===12) h=0; } }
+  const r = new Date(y, mo-1, d, h, mi, se);
+  return isNaN(r) ? null : r;
+}
+const hasTimeText = s => /\b\d{1,2}[:h]\d{2}\b/.test(s);
+// Hora real escrita en GESTIÓN (solo si es anterior al registro = desfase)
+function realTime(rec){
+  if (!rec || !rec.t) return null;
+  const m = rec.gestionN.replace(/\./g,'').match(/\b(\d{1,2})[:h](\d{2})\s*(a ?m|p ?m)?/);
+  if (!m) return null;
+  let h=+m[1], mi=+m[2];
+  if (m[3]) { const pm = m[3][0]==='p'; if (pm && h<12) h+=12; if (!pm && h===12) h=0; }
+  if (h>23 || mi>59) return null;
+  const cand = (m[3] || h >= 12) ? [h] : [h, h+12];
+  let best = null;
+  for (const hh of cand){
+    let r = new Date(rec.t.getFullYear(), rec.t.getMonth(), rec.t.getDate(), hh, mi, 0);
+    if (r - rec.t > 5*60000) r = new Date(r - 86400000);
+    if (rec.t - r > 20*3600000 || r > rec.t) continue;
+    if (!best || r > best) best = r;
+  }
+  return best;
+}
+const eff = r => r ? (realTime(r) || r.t) : null;
+
+const RX = {
+  exclude: /cancelaci|viaje cancelado|cancela(do)? viaje|anulaci.*despacho|cambio de programacion|legaliza/,
+  cm: /confirmacion manual/,
+  vf: /viaje finalizado|finaliza(cion)? (de(l)? )?viaje|fin de viaje/,
+  tiemposOp: /tiempos? de operacion/,
+  auto: /gestion automatica|automatic/,
+  markText: /(^|[^a-z])(inicio|inicia|fin|finaliza|finalizo|termina)( de| del| el| la)? (cargue|descargue)/,
+  markTextNeg: /espera|pendiente|para (el |dar )?inicio|programad|cita|aguardando|a la espera|por iniciar/,
+  dupTipos: /salida de patio|inicio de operacion|viaje finalizado|tiempos? de operacion/,
+  critical: /llegada|salida de patio|salida del (sitio|destinatario|remitente)|inicio de operacion|enturnad/,
+  salidaDest: /salida (del |de )?(destinatario|cliente)/,
+  descCtx: /llegada.*(descargue|destinatario|cliente)|enturnad/,
+  fallaIni: /falla mecanica|varad/,
+  fallaFin: /(fin|finaliza|solucion|supera|reanuda).*(falla|varad)|(falla|varad).*(fin|finaliz|solucion|supera|reanuda)/,
+  fallaFinTxt: /solucionad|superad|reanuda|reinicia|continua (el )?(viaje|recorrido|marcha)|queda (en marcha|operativo)/,
+  vfMalo: /^(enturnad|en ruta|inicio (de )?(cargue|descargue)|llegada|cargado en transito|sitio de)/,
+  vfBueno: /finaliz|descargad|entregad|cumplid|\bfin\b|cerrad|termin/,
+  alaNoGest: /zona prohibida|alto del trigo|giro peligroso|parada automatica|puesto de control|control virtual|conduccion continua|maxima velocidad permitida|no gestionable|^evento|evento gps/
+};
+const ALARMAS = [
+  { k:'Exceso de velocidad', rx:/velocidad/, kw:/velocidad|conductor|comunic|llam|parametro|limite|km|reduc|disminu|moder|recomiend|indic|llama/ },
+  { k:'Posible golpe o accidente', rx:/golpe|accidente|impacto|colision/, grave:true },
+  { k:'Fuera de ruta / Desvío', rx:/fuera de ruta|desvio|desviacion/, kw:/ruta alterna|via alterna|cierre|cerrad|derrumbe|trancon|obra|paro|bloqueo|tanque|combustible|peaje|retorno|pernoct|parquead|detenid|espera|enturn|patio|documento|accidente|restriccion|cargue|descargue|cliente|taller|falla/ },
+  { k:'Demora en ruta', rx:/demora/, kw:/demora|trancon|cierre|espera|descans|almuerz|pernoct|falla|cita|retras|paro|bloqueo|congestion|lluvia|obra|enturn|tanque|combustible|reten/ },
+  { k:'Parada no autorizada', rx:/parada no autorizada/, kw:/parad|autoriz|almuerz|descans|combustible|tanque|bano|pernoct|falla|peaje|revision|reten|alimenta|trancon|enturn|cargue|descargue|espera/ },
+  { k:'Temperatura aceite/refrigerante', rx:/temperatura|aceite|refrigerante|recalent/, kw:/temperatura|motor|mecanic|revis|refriger|aceite|conductor|verific|nivel/ }
+];
+
+function markKey(tn){
+  if (/^inicio (de |del )?cargue\b/.test(tn)) return 'ic';
+  if (/^(fin|finaliza|finalizacion|finalizo)( de| del)? cargue\b/.test(tn)) return 'fc';
+  if (/^inicio (de |del )?descargue\b/.test(tn)) return 'id';
+  if (/^(fin|finaliza|finalizacion|finalizo)( de| del)? descargue\b/.test(tn)) return 'fd';
+  return null;
+}
+const MARK_LABEL = { ic:'Inicio de cargue', fc:'Fin de cargue', id:'Inicio de descargue', fd:'Fin de descargue' };
+
+function parseWorkbook(wb, fileName){
+  for (const sn of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, raw:true, defval:'' });
+    let hi = -1;
+    for (let i=0; i<Math.min(rows.length,40); i++) if (rows[i].some(c => norm(c).includes('tipo de novedad'))) { hi=i; break; }
+    if (hi < 0) continue;
+    const H = rows[hi].map(norm);
+    const col = f => H.findIndex(f);
+    const C = {
+      tipo: col(h => h.includes('tipo de novedad')),
+      tAt: col(h => h.includes('atencion') && !h.includes('atendida')),
+      tNov: col(h => h.includes('novedad') && (h.includes('fecha') || h.includes('hora')) && !h.includes('tipo')),
+      alarma: col(h => h.startsWith('alarma')),
+      atendida: col(h => h.includes('atendida')),
+      gestion: col(h => h.startsWith('gestion')),
+      viaje: col(h => /^(no\.? |numero |n |# ?)?(viaje|despacho|manifiesto)/.test(h)),
+      placa: col(h => h.includes('placa')),
+      conductor: col(h => h.includes('conductor') && !h.includes('comunicacion')),
+      ubic: col(h => h.includes('descripcion de la ubicacion'))
+    };
+    const g = (r,k) => C[k] >= 0 ? r[C[k]] : '';
+    const records = [];
+    let id = '', placa = '', conductor = '';
+    for (let i=hi+1; i<rows.length; i++){
+      const r = rows[i];
+      const tipo = String(g(r,'tipo') ?? '').trim(), alarma = String(g(r,'alarma') ?? '').trim();
+      if (!tipo && !alarma) continue;
+      const tAt = toDate(g(r,'tAt')), tNov = toDate(g(r,'tNov'));
+      const atendida = String(g(r,'atendida') ?? '').trim(), gestion = String(g(r,'gestion') ?? '').trim();
+      const an = norm(atendida);
+      const vj = String(g(r,'viaje') ?? '').trim();
+      records.push({
+        viaje: vj, ubic: norm(g(r,'ubic')),
+        i: records.length, tAt, tNov, t: tAt || tNov, tipo, tipoN: norm(tipo), alarma, alarmaN: norm(alarma),
+        atendida, auto: !an || RX.auto.test(an), gestion, gestionN: norm(gestion)
+      });
+      if (!id && g(r,'viaje')) id = String(g(r,'viaje')).trim();
+      if (!placa && g(r,'placa')) placa = String(g(r,'placa')).trim();
+      if (!conductor && g(r,'conductor')) conductor = String(g(r,'conductor')).trim();
+    }
+    if (!id){
+      for (let i=0; i<hi; i++){
+        const line = rows[i].map(c => String(c)).join(' ');
+        const m = norm(line).match(/(viaje|despacho|manifiesto)\D{0,12}(\d{3,})/);
+        if (m) { id = m[2]; break; }
+      }
+    }
+    if (!id){ const m = fileName.match(/\d{4,}/); id = m ? m[0] : fileName.replace(/\.[^.]+$/,''); }
+    const missing = ['tipo','tAt','atendida','gestion'].filter(k => C[k] < 0);
+    const ids = [...new Set(records.map(r => r.viaje).filter(Boolean))];
+    if (ids.length > 1) return ids.map(v => ({ id:v, file:fileName, placa, conductor, records:records.filter(r => r.viaje === v).map((r,i) => ({...r, i})), missingCols:missing }));
+    return [{ id, file:fileName, placa, conductor, records, missingCols:missing }];
+  }
+  throw new Error('No se encontró la columna TIPO DE NOVEDAD');
+}
+
+function calificacion(p){
+  if (p >= 85) return 'EXCELENTE';
+  if (p >= 70) return 'BUENO';
+  if (p >= 55) return 'REGULAR';
+  if (p >= 40) return 'DEFICIENTE';
+  return 'MUY DEFICIENTE';
+}
+
+function evaluateTrip(trip){
+  const recs = trip.records.slice().sort((a,b) => ((a.t?+a.t:0) - (b.t?+b.t:0)) || (a.i - b.i));
+  const R = { id:trip.id, file:trip.file, placa:trip.placa, conductor:trip.conductor, missingCols:trip.missingCols||[],
+              records:recs, findings:[], excluded:null, scores:{}, ops:{} };
+  const ts = recs.filter(r => r.t).map(r => +r.t);
+  R.inicio = ts.length ? new Date(Math.min(...ts)) : null;
+  R.fin = ts.length ? new Date(Math.max(...ts)) : null;
+
+  const exc = recs.find(r => RX.exclude.test(r.tipoN));
+  if (exc){
+    R.excluded = /legaliz/.test(exc.tipoN) ? 'legalización' : /cambio de programacion/.test(exc.tipoN) ? 'cambio de programación' : 'cancelación';
+    R.excludedTipo = exc.tipo;
+    return R;
+  }
+  const F = (crit, nivel, tag, texto, rec) => R.findings.push({ crit, nivel, tag, texto, rec: rec || null, op: rec && !rec.auto ? rec.atendida : null, t: rec ? rec.t : null });
+  const manual = recs.filter(r => !r.auto);
+  const fmt = d => d ? d.toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+
+  // ---------- Marcas ----------
+  const M = { ic:[], fc:[], id:[], fd:[] };
+  let seenDesc = false;
+  for (const r of recs){
+    const k = markKey(r.tipoN);
+    r.mark = null;
+    if (k){ M[k].push({ r, src: /\bapp\b/.test(r.tipoN) ? 'app' : 'tipo' }); r.mark = [k]; if (k==='id'||k==='fd') seenDesc = true; continue; }
+    if (RX.cm.test(r.tipoN)){
+      const ent = /entrada|llegada/.test(r.tipoN), sal = /salida/.test(r.tipoN);
+      const both = /localidad/.test(r.tipoN) || (ent && sal) || (!ent && !sal);
+      let op = /descargue/.test(r.tipoN) ? 'd' : /cargue/.test(r.tipoN) ? 'c' : null;
+      if (!op){
+        const ctx = r.gestionN + ' ' + (r.ubic||'');
+        if (/descarg|destinatario|entrega/.test(ctx)) op = 'd';
+        else if (/\bcargue\b|\bcarga\b|remitente/.test(ctx)) op = 'c';
+        else if (seenDesc) op = 'd';
+        else if (both || ent) op = (!M.ic.length && !M.fc.length) ? 'c' : 'd';
+        else op = (M.ic.length && !M.fc.length) ? 'c' : 'd';
+      }
+      const ini = both || ent, fin = both || sal;
+      r.mark = [];
+      if (op === 'c'){ if (ini){ M.ic.push({r,src:'cm',both}); r.mark.push('ic'); } if (fin){ M.fc.push({r,src:'cm',both}); r.mark.push('fc'); } }
+      else { if (ini){ M.id.push({r,src:'cm',both}); r.mark.push('id'); } if (fin){ M.fd.push({r,src:'cm',both}); r.mark.push('fd'); } seenDesc = true; }
+      continue;
+    }
+    if (RX.descCtx.test(r.tipoN)) seenDesc = true;
+  }
+  const vfRecs = recs.filter(r => RX.vf.test(r.tipoN));
+  const vf = vfRecs[0] || null;
+
+  // ---------- 2. TIEMPOS LOGÍSTICOS ----------
+  const faltan = Object.keys(M).filter(k => !M[k].length);
+  // ¿Dos o más clientes? (inicio/fin de descargue alternados)
+  const distinctT = arr => [...new Map(arr.map(x => [(x.r.t?+x.r.t:x.r.i)+'|'+x.r.gestionN, x])).values()].sort((a,b)=>(+a.r.t||0)-(+b.r.t||0));
+  const dId = distinctT(M.id), dFd = distinctT(M.fd);
+  let clientes = 1;
+  if (dId.length >= 2 && dId.length === dFd.length){
+    let alt = true;
+    for (let k=0; k<dId.length; k++){
+      if (!(dId[k].r.t && dFd[k].r.t && dId[k].r.t <= dFd[k].r.t)) alt = false;
+      if (k+1 < dId.length && !(dFd[k].r.t < dId[k+1].r.t)) alt = false;
+    }
+    if (alt) clientes = dId.length;
+  }
+  R.clientes = clientes;
+  if (!faltan.length){
+    R.scores.tie = 25;
+    F('tie','ok','marcasOk', '4/4 marcas obligatorias en el TIPO DE NOVEDAD correcto' + (clientes>1 ? ` (${clientes} puntos de descargue, cada uno con inicio y fin)` : ''));
+  } else {
+    R.scores.tie = 0;
+    F('tie','crit','faltante', `Falta(n) ${faltan.length} marca(s): ${faltan.map(k=>MARK_LABEL[k]).join(', ')} → 0/25`);
+  }
+  // ¿Quién no gestionó la marca faltante? Operario que registró la primera evidencia de que la
+  // operación ya había ocurrido (responsable) y quien atendió justo antes en esa etapa (corresponsable).
+  R.faltantesOp = [];
+  if (faltan.length){
+    const man = recs.filter(r => !r.auto && r.t);
+    const after = (rx, anchor) => man.find(r => (!anchor || r.t >= anchor) && rx(r));
+    const firstT = arr => { const t = arr.filter(x => x.r.t).map(x => +x.r.t); return t.length ? new Date(Math.min(...t)) : null; };
+    const ctxC = man.find(r => /llegada.*cargue|sitio de cargue|proceso de cargue/.test(r.tipoN));
+    const ancC = firstT(M.ic) || (ctxC && ctxC.t);
+    const ancD = firstT(M.id) || (man.find(r => /llegada.*descargue|sitio de descargue|enturnad|proceso de descargue/.test(r.tipoN)) || {}).t;
+    const RULES = {
+      ic: { ev: r => /proceso de cargue|demora en cargue|cargo en espera/.test(r.tipoN) || markKey(r.tipoN) === 'fc', ctx: /llegada.*cargue|sitio de cargue/ },
+      fc: { ev: r => (ancC ? true : /cargado/.test(r.gestionN)) && (/en ruta|salida de sitio de cargue|llegada.*descargue|enturnad|cargo en espera/.test(r.tipoN) || /^cargado/.test(r.gestionN)), anchor: ancC, ctx: /proceso de cargue|inicio de cargue|llegada.*cargue|sitio de cargue/ },
+      id: { ev: r => /proceso de descargue|demora en descargue/.test(r.tipoN) || markKey(r.tipoN) === 'fd', ctx: /llegada.*descargue|sitio de descargue|enturnad/ },
+      fd: { ev: r => /salida de sitio de descargue|salida del destinatario|fin de operacion|viaje finalizado/.test(r.tipoN), anchor: ancD, ctx: /proceso de descargue|demora en descargue|inicio de descargue|enturnad/ }
+    };
+    for (const k of faltan){
+      const ru = RULES[k], ev = after(ru.ev, ru.anchor);
+      const prev = ev ? man.filter(r => r.t <= ev.t && r !== ev && ru.ctx.test(r.tipoN)).pop() : null;
+      const item = { marca: MARK_LABEL[k], resp: ev ? ev.atendida : null, evid: ev ? ev.tipo : null, co: prev && prev.atendida !== (ev && ev.atendida) ? prev.atendida : null, coTipo: prev ? prev.tipo : null };
+      R.faltantesOp.push(item);
+      if (ev) F('tie','crit','faltanteOp', `${MARK_LABEL[k]} no registrada: registró "${ev.tipo}" (${fmt(ev.t)}) con la operación ya en curso/terminada y no marcó la novedad`, ev);
+      else F('tie','warn','faltanteSinEv', `${MARK_LABEL[k]}: no hay ningún registro de esa etapa; no se puede atribuir a un operario`);
+      if (item.co) F('tie','warn','faltanteCo', `${MARK_LABEL[k]}: corresponsable — atendió "${prev.tipo}" (${fmt(prev.t)}) en esa etapa sin dejar la marca`, prev);
+    }
+  }
+  const allMarks = [...M.ic, ...M.fc, ...M.id, ...M.fd];
+  const app = allMarks.filter(x => x.src==='app');
+  if (app.length) F('tie','ok','app', `Registro desde APP en tiempo real (${[...new Set(app.map(x=>x.r.tipo))].join(', ')}) — mejor práctica`, app[0].r);
+  const cms = [...new Set(allMarks.filter(x => x.src==='cm').map(x => x.r))];
+  if (cms.length) F('tie','ok','cm', `Confirmación Manual usada como marca válida (${cms.length} registro${cms.length>1?'s':''})`, cms[0]);
+  // duraciones
+  const dur = (a,b) => (a && b && a.r.t && b.r.t && a.r !== b.r) ? Math.round((b.r.t - a.r.t)/60000) : null;
+  R.durCargue = dur(M.ic[0], M.fc[M.fc.length-1]);
+  R.durDescargue = dur(M.id[0], M.fd[M.fd.length-1]);
+
+  // ---------- 1. SECUENCIA LÓGICA ----------
+  let sec = 0;
+  const add = (pen, cap, key) => { R._acc = R._acc || {}; const cur = R._acc[key]||0; const v = Math.max(0, Math.min(pen, cap - cur)); R._acc[key] = cur + v; sec += v; return v; };
+
+  // Duración 0 (usa la hora real escrita en GESTIÓN cuando existe)
+  const zeroPairs = new Set();
+  const zero = (a, b, lbl) => {
+    if (!a || !b || a.r === b.r || !a.r.t || !b.r.t || (a.src==='cm' && a.both) || (b.src==='cm' && b.both)) return;
+    const ea = eff(a.r), eb = eff(b.r);
+    if (+ea === +eb){
+      sec += CONFIG.sec.duracion0; zeroPairs.add(a.r).add(b.r);
+      F('sec','crit','duracion0', `${lbl}: inicio y fin al mismo instante (${fmt(ea)}) — duración 0, operación irrastreable`, b.r);
+    }
+  };
+  zero(M.ic.find(x => x.src!=='cm'||!x.both) || M.ic[0], M.fc.find(x => x.src!=='cm'||!x.both) || M.fc[0], 'Cargue');
+  if (clientes > 1) for (let k=0; k<clientes; k++) zero(dId[k], dFd[k], `Descargue punto ${k+1}`);
+  else zero(M.id.find(x => x.src!=='cm'||!x.both) || M.id[0], M.fd.find(x => x.src!=='cm'||!x.both) || M.fd[0], 'Descargue');
+  // Bloques simultáneos: hitos operativos distintos (inicio/fin cargue/descargue) atendidos en el mismo instante
+  // sin hora real en GESTIÓN. No cuenta VF + Finaliza descargue, ni varias novedades de seguimiento en el mismo minuto.
+  const groups = new Map();
+  for (const r of manual) if (r.t && markKey(r.tipoN)){ const k = +r.t; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  for (const [k, g] of groups){
+    const keys = new Set(g.map(r => markKey(r.tipoN)));
+    if (keys.size < 2) continue;
+    if (g.every(r => zeroPairs.has(r))) continue;
+    if (g.filter(r => !realTime(r)).length < 2) continue;
+    add(CONFIG.sec.bloque, CONFIG.sec.bloqueCap, 'bloque');
+    F('sec','crit','simultaneo', `Bloque simultáneo ${fmt(new Date(k))}: ${keys.size} hitos distintos con el mismo timestamp y sin hora real (${g.map(r=>r.tipo).join(' · ')}) → registro retroactivo`, g[0]);
+  }
+  // Duplicados
+  const dupCount = {};
+  for (const r of manual){
+    const k = markKey(r.tipoN);
+    let key = null;
+    if (k && !(clientes > 1 && (k==='id'||k==='fd'))) key = MARK_LABEL[k];
+    else { const m = r.tipoN.match(RX.dupTipos); if (m) key = r.tipo; }
+    if (key) (dupCount[key] = dupCount[key] || []).push(r);
+  }
+  for (const [key, arr] of Object.entries(dupCount)){
+    if (arr.length > 1){
+      const ident = arr.every(r => +r.t === +arr[0].t && r.gestionN === arr[0].gestionN);
+      add(CONFIG.sec.duplicada * (arr.length-1), CONFIG.sec.duplicadaCap, 'dup');
+      F('sec','warn','duplicada', `Marca duplicada: "${key}" registrada ${arr.length} veces${ident ? ' (idéntica: mismo timestamp y texto)' : ''}`, arr[1]);
+    }
+  }
+  // Marca escrita en TIPO DE NOVEDAD incorrecto
+  for (const r of manual){
+    if (r.mark || RX.vf.test(r.tipoN) || RX.tiemposOp.test(r.tipoN) || r.alarmaN) continue;
+    const m = r.gestionN.match(RX.markText);
+    if (m && !RX.markTextNeg.test(r.gestionN)){
+      if (add(CONFIG.sec.tipoIncorrecto, CONFIG.sec.tipoIncorrectoCap, 'tipoInc') >= 0)
+        F('sec','crit','tipoIncorrecto', `"${m[0].trim()}" escrito como texto dentro de "${r.tipo}" (${fmt(r.t)}) — no cuenta como marca`, r);
+    }
+  }
+  // Orden lógico
+  const first = arr => { const a = arr.filter(x => !(x.src==='cm' && x.both) && x.r.t); return a.length ? a.reduce((x,y) => eff(y.r) < eff(x.r) ? y : x) : null; };
+  const E = x => eff(x.r);
+  const fIc = first(M.ic), fFc = first(M.fc), fId = first(M.id), fFd = first(M.fd);
+  if (fIc && fFc && fIc.r !== fFc.r && E(fIc) > E(fFc)){ sec += CONFIG.sec.orden; F('sec','warn','orden','Fin de cargue registrado antes que el inicio de cargue', fFc.r); }
+  if (fFc && fId && E(fId) < E(fFc)){ sec += CONFIG.sec.orden; F('sec','warn','orden','Inicio de descargue registrado antes del fin de cargue', fId.r); }
+  if (fId && fFd && fId.r !== fFd.r && E(fId) > E(fFd)){ sec += CONFIG.sec.orden; F('sec','warn','orden','Fin de descargue registrado antes que el inicio de descargue', fFd.r); }
+  if (vf && vf.t){
+    const post = manual.filter(r => r.t && r.t > vf.t && r !== vf && (r.mark || RX.critical.test(r.tipoN)));
+    for (const r of post){ add(CONFIG.sec.posteriorVF, CONFIG.sec.posteriorVFCap, 'postVF'); F('sec','warn','posteriorVF', `"${r.tipo}" registrado después del Viaje Finalizado (${fmt(r.t)})`, r); }
+  }
+  // Retrasos de registro > 60 min sin hora real en GESTIÓN
+  for (const r of manual){
+    if (r.alarmaN || !r.tNov || !r.tAt) continue;
+    const d = (r.tAt - r.tNov)/60000;
+    if (d > CONFIG.retrasoMin && !hasTimeText(r.gestionN)){
+      if (add(CONFIG.sec.retraso, CONFIG.sec.retrasoCap, 'retraso') > 0)
+        F('sec','warn','retraso', `"${r.tipo}" atendido ${Math.round(d)} min después de la novedad, sin hora real en GESTIÓN`, r);
+    }
+  }
+  // Salida del destinatario sin estar en el destinatario
+  for (const r of manual){
+    if (!RX.salidaDest.test(r.tipoN)) continue;
+    const prev = recs.some(x => x.t && r.t && x.t <= r.t && x !== r && ((x.mark && x.mark.some(k => k==='id'||k==='fd')) || /llegada.*(destinatario|cliente|descargue)|enturnad/.test(x.tipoN)));
+    if (!prev){ sec += CONFIG.sec.salidaDest; F('sec','warn','salidaDest', 'Salida del destinatario gestionada sin evidencia previa de llegada/descargue en el destinatario', r); }
+  }
+  // Fallas mecánicas
+  const fallas = manual.filter(r => RX.fallaIni.test(r.tipoN) && !RX.fallaFin.test(r.tipoN));
+  if (fallas.length){
+    const fin = recs.some(r => RX.fallaFin.test(r.tipoN) || (RX.fallaIni.test(r.tipoN) && RX.fallaFinTxt.test(r.gestionN)));
+    if (!fin){ sec += CONFIG.sec.fallaSinFin; F('sec','crit','falla', `Falla mecánica sin fin formal (${fallas.length} registro${fallas.length>1?'s':''} de falla, ninguno de cierre)`, fallas[fallas.length-1]); }
+    else if (fallas.length >= 2) F('sec','ok','fallaOk', `Falla mecánica con ${fallas.length} seguimientos y fin formal`, fallas[0]);
+  }
+  // Secuencia completa
+  const hasInicio = recs.some(r => /salida de patio|inicio de operacion/.test(r.tipoN));
+  if (hasInicio && !faltan.length && vf && sec === 0) F('sec','ok','secCompleta', 'Secuencia completa y coherente: salida de patio → cargue → ruta → descargue → viaje finalizado');
+  R.scores.sec = Math.max(0, +(25 - sec).toFixed(2));
+
+  // ---------- 3. GESTIÓN DE ALARMAS ----------
+  let ala = 0, okA = 0;
+  R.alarmas = [];
+  for (const r of recs){
+    if (!r.alarmaN || r.auto || RX.alaNoGest.test(r.alarmaN)) continue;
+    const def = ALARMAS.find(a => a.rx.test(r.alarmaN));
+    if (!def) continue;
+    const masiva = /gestion masiva/.test(r.gestionN);
+    const txt = r.gestionN.replace(/gestion masiva/g,'').replace(/^[\s:;,.\-–]+/,'').trim();
+    let q;
+    if (txt.length < 3) q = 'sin';
+    else if (def.grave){
+      const llam = /llam|comunic|contact|habl/.test(txt), ver = /verific|confirm|estado|bien|sin lesion|ilesos?|no (hubo|presenta|reporta)|sin novedad/.test(txt);
+      q = (llam && ver && !/^en ruta sin novedad\.?$/.test(txt)) ? 'ok' : 'parcial';
+    } else {
+      q = (def.kw.test(txt) && txt.length >= 15 && !/^cargado en transito\.?$/.test(txt)) ? 'ok' : 'parcial';
+    }
+    // Lote actual: exceso de velocidad bien gestionado cuenta como válido; parcial o sin gestión no se castiga (no entra al cálculo)
+    if (CONFIG.ignorarVelocidad && def.k === 'Exceso de velocidad' && q !== 'ok'){ R.velIgnoradas = (R.velIgnoradas||0) + 1; continue; }
+    R.alarmas.push({ r, tipo:def.k, q, masiva });
+    if (q === 'ok') okA++;
+    else if (q === 'parcial'){
+      ala += def.grave ? CONFIG.ala.parcialGrave : CONFIG.ala.parcial;
+      F('ala', def.grave ? 'crit' : 'warn', def.grave ? 'golpe' : 'alarmaParcial',
+        def.grave ? `Posible golpe/accidente (${fmt(r.t)}) cerrado sin protocolo completo (llamada + verificación + resultado): "${r.gestion.slice(0,90)}" — brecha de seguridad`
+                  : `${def.k} (${fmt(r.t)}) con gestión parcial${masiva?' (GESTION MASIVA con comentario no acorde)':''}: "${r.gestion.slice(0,90)}"`, r);
+    } else {
+      ala += def.grave ? CONFIG.ala.sinGrave : CONFIG.ala.sin;
+      F('ala','crit', def.grave ? 'golpe' : 'alarmaSin', `${def.k} (${fmt(r.t)}) sin gestión${masiva?' (GESTION MASIVA sin comentario)':''}`, r);
+    }
+  }
+  if (R.velIgnoradas) F('ala','ok','velIgnorada', `${R.velIgnoradas} alarma(s) de exceso de velocidad con gestión parcial o sin gestión no se castigan en este lote`);
+  if (!R.alarmas.length) F('ala','ok','sinAlarmas','Sin alarmas gestionables en el viaje');
+  else if (okA) F('ala','ok','alarmaOk', `${okA} de ${R.alarmas.length} alarma(s) gestionable(s) cerrada(s) con comentario que explica situación y solución`);
+  // Puntaje proporcional (v8.8): válida = 1, parcial = 0.5, sin gestión o golpe sin protocolo = 0
+  if (R.alarmas.length){
+    const peso = R.alarmas.reduce((t,a) => t + (a.q === 'ok' ? 1 : (a.q === 'parcial' && a.tipo !== 'Posible golpe o accidente') ? 0.5 : 0), 0);
+    R.scores.ala = +(25 * peso / R.alarmas.length).toFixed(2);
+  } else R.scores.ala = 25;
+
+  // ---------- 4. CIERRE OPORTUNO ----------
+  if (!vf){
+    R.scores.cie = 0;
+    F('cie','crit','sinVF','No existe novedad "Viaje Finalizado" → 0/25');
+  } else {
+    let ref = null, refLbl = '';
+    const fdOk = M.fd.filter(x => x.r.t);
+    const fdRef = clientes > 1 ? dFd[dFd.length-1] : (fdOk.length ? fdOk.reduce((x,y) => eff(y.r) < eff(x.r) ? y : x) : null);
+    if (fdRef){ ref = eff(fdRef.r); refLbl = 'fin de descargue' + (realTime(fdRef.r) ? ' (hora real de GESTIÓN)' : ''); }
+    else {
+      const alt = recs.filter(r => r.t && ((r.mark && r.mark.includes('id')) || /llegada.*(destinatario|cliente|descargue)|salida (del |de )?(destinatario|cliente)/.test(r.tipoN))).pop();
+      if (alt){ ref = realTime(alt) || alt.t; refLbl = `"${alt.tipo}" (no hay fin de descargue)`; }
+    }
+    const vfMalo = RX.vfMalo.test(vf.gestionN) && !RX.vfBueno.test(vf.gestionN);
+    if (!ref || !vf.t){
+      R.scores.cie = 12.5;
+      F('cie','warn','cierreSinRef','Existe Viaje Finalizado pero no hay hora de entrega para medir el cierre — revisar manualmente', vf);
+    } else {
+      const mins = Math.round((vf.t - ref)/60000);
+      R.cierreMin = mins;
+      if (mins < 0){
+        R.scores.cie = 6.25; R.prematuro = true;
+        F('cie','crit','prematuro', `Viaje cerrado ${-mins} min ANTES de la entrega real (${refLbl}) — cierre prematuro`, vf);
+      } else {
+        let idx = CONFIG.cierre.findIndex(([lim]) => mins <= lim);
+        if (vfMalo) idx = Math.min(idx+1, CONFIG.cierre.length-1);
+        R.scores.cie = CONFIG.cierre[idx][1];
+        const lvl = mins <= 60 ? 'ok' : mins <= 120 ? 'warn' : 'crit';
+        F('cie', lvl, mins <= 60 ? 'cierreOk' : 'cierreTarde', `Cierre ${mins} min después del ${refLbl}` + (mins<=60?' — dentro de los 60 min permitidos':mins<=120?' — excede los 60 min permitidos (regular)':' — excede 2 h (deficiente)'), vf);
+      }
+    }
+    if (vfMalo) F('cie','warn','vfTexto', `Texto del Viaje Finalizado corresponde a otra novedad: "${vf.gestion.slice(0,80)}" (baja un nivel)`, vf);
+    else F('cie','ok','vfTextoOk', `Texto del VF válido: "${vf.gestion.slice(0,60) || 'Viaje finalizado'}"`, vf);
+    if (vfRecs.length > 1) F('cie','warn','duplicada', `Viaje Finalizado registrado ${vfRecs.length} veces`, vfRecs[1]);
+  }
+
+  // ---------- Total ----------
+  R.total = +(R.scores.sec + R.scores.tie + R.scores.ala + R.scores.cie).toFixed(2);
+  R.calif = calificacion(R.total);
+
+  // Operarios del viaje
+  for (const r of manual){
+    const o = R.ops[r.atendida] = R.ops[r.atendida] || { n:0, marcas:new Set() };
+    o.n++;
+    if (r.mark) r.mark.forEach(k => o.marcas.add(MARK_LABEL[k]));
+    if (RX.vf.test(r.tipoN)) o.marcas.add('Viaje Finalizado');
+    if (RX.tiemposOp.test(r.tipoN)) o.marcas.add('Tiempos de operación');
+    if (r.alarmaN) o.marcas.add('Alarmas');
+    if (/salida de patio|inicio de operacion/.test(r.tipoN)) o.marcas.add('Salida/Inicio operación');
+  }
+  delete R._acc;
+  return R;
+}
+
+const ACCIONES = {
+  faltanteOp:['Crítico','Al registrar Proceso/Finaliza descargue o cargue, verificar que la marca de inicio/fin correspondiente exista; si no, registrarla con la hora real en GESTIÓN.'],
+  faltanteCo:['Importante','Quien registra Llegada/Enturnado debe dejar la marca de inicio apenas inicie la operación o entregar el pendiente en el cambio de turno.'],
+  faltante:['Crítico','Registrar las 4 marcas obligatorias (inicio/fin de cargue y descargue) en su TIPO DE NOVEDAD propio, idealmente desde la APP.'],
+  sinVF:['Crítico','Registrar la novedad "Viaje Finalizado" al confirmar la entrega.'],
+  prematuro:['Crítico','No cerrar el viaje antes de la entrega real; validar fin de descargue antes del VF.'],
+  alarmaSin:['Crítico','Cerrar toda alarma gestionable con un comentario que explique la situación y la solución.'],
+  golpe:['Crítico','Aplicar el protocolo de posible golpe: llamada al conductor, verificación de vehículo/carga/conductor y resultado documentado.'],
+  simultaneo:['Importante','Registrar las novedades en tiempo real; evitar cargar varias en bloque de forma retroactiva.'],
+  duracion0:['Importante','Registrar inicio y fin de cargue/descargue en su momento real (duración 0 no es trazable).'],
+  tipoIncorrecto:['Importante','Usar el TIPO DE NOVEDAD específico para cada marca; no escribirla como texto en Comunicación conductor, Sitio de cargue, Informativo, etc.'],
+  falla:['Importante','Registrar formalmente el fin de cada falla mecánica.'],
+  alarmaParcial:['Importante','Ajustar los comentarios de alarma (incluida la GESTION MASIVA) para que correspondan a la alarma y expliquen la solución.'],
+  cierreTarde:['Importante','Cerrar el viaje máximo 60 minutos después de la entrega real.'],
+  orden:['Importante','Revisar el orden de las novedades para que sigan la progresión real del viaje.'],
+  retraso:['Leve','Cuando el registro sea tardío, escribir la hora real del evento en GESTIÓN.'],
+  duplicada:['Leve','Evitar registrar la misma novedad más de una vez.'],
+  vfTexto:['Leve','El texto del Viaje Finalizado debe describir el cierre ("Viaje finalizado", "Descargado").'],
+  posteriorVF:['Leve','No registrar novedades operativas después del Viaje Finalizado.'],
+  salidaDest:['Leve','Registrar "Salida del destinatario" solo cuando el vehículo efectivamente estuvo en el destinatario.'],
+  tiemposOp:['Leve','Registrar la novedad "Tiempos de operación" en cada trazabilidad.'],
+  cierreSinRef:['Leve','Asegurar que exista la marca de fin de descargue para poder medir el cierre.']
+};
+const TAG_LABEL = {
+  faltanteOp:'Marca faltante no gestionada (responsable)', faltanteCo:'Marca faltante (corresponsable)', faltanteSinEv:'Marca faltante sin evidencia', faltante:'Marcas faltantes', simultaneo:'Registros simultáneos', duracion0:'Inicio = Fin (duración 0)', tipoIncorrecto:'Marca en tipo incorrecto',
+  duplicada:'Marcas duplicadas', retraso:'Retrasos de registro >1h', orden:'Orden ilógico', posteriorVF:'Novedades después del VF', falla:'Falla sin fin formal',
+  salidaDest:'Salida destinatario sin estar', tiemposOp:'Sin "Tiempos de operación"', alarmaSin:'Alarmas sin gestión', alarmaParcial:'Alarmas con gestión parcial',
+  golpe:'Posible golpe sin protocolo', sinVF:'Sin Viaje Finalizado', prematuro:'Cierre prematuro', cierreTarde:'Cierre >60 min', vfTexto:'Texto VF incorrecto', cierreSinRef:'Cierre sin referencia'
+};
+function accionesDe(R){
+  const out = [], seen = new Set();
+  for (const f of R.findings){
+    if (f.nivel === 'ok'){ if (['app','cm','secCompleta','fallaOk','alarmaOk'].includes(f.tag) && !seen.has(f.tag)){ seen.add(f.tag); out.push(['Buena práctica', f.texto]); } continue; }
+    if (seen.has(f.tag) || !ACCIONES[f.tag]) continue;
+    seen.add(f.tag); out.push(ACCIONES[f.tag]);
+  }
+  const ord = { 'Crítico':0, 'Importante':1, 'Leve':2, 'Buena práctica':3 };
+  return out.sort((a,b) => ord[a[0]] - ord[b[0]]);
+}
+/*ENGINE_END*/
+// ======================= INTERFAZ =======================
+const state = { dir:null, results:[], errors:[], cache:new Map(), files:0, lastScan:null, fallback:false, busy:false };
+const byId = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = d => d ? d.toLocaleDateString('es-CO') : '—';
+const fdt = d => d ? d.toLocaleString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+const GN = { 'EXCELENTE':'Excelente','BUENO':'Bueno','REGULAR':'Regular','DEFICIENTE':'Deficiente','MUY DEFICIENTE':'Muy deficiente' };
+const gradeOf = t => t.excluded ? 'Excluido' : GN[t.calif];
+const pill = g => `<span class="pill ${g==='Excluido'?'excluded':g.replace(' ','')}">${esc(g)}</span>`;
+const barColor = (v,max=25) => v/max >= .8 ? 'good' : v/max >= .5 ? 'warn' : 'bad';
+const barRows = (items,max=25,dec=1) => items.map(([label,v,color]) => `<div class="barrow"><span>${esc(label)}</span><div class="barbg"><div class="bar ${color||''}" style="width:${Math.max(0,Math.min(100,v/max*100))}%"></div></div><b>${Number(v).toFixed(dec)}</b></div>`).join('');
+const ICON = { ok:'🟢', warn:'🟡', crit:'🔴' };
+const CRIT = { sec:'Secuencia lógica', tie:'Tiempos logísticos', ala:'Gestión de alarmas', cie:'Cierre oportuno' };
+const avg = a => a.length ? a.reduce((x,y) => x+y, 0) / a.length : 0;
+const keyOf = R => R.key;
+
+// ---------- Carpeta ----------
+function idb(){ return new Promise((res,rej) => { const r = indexedDB.open('trazabilidad',1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function kvSet(k,v){ try{ const db = await idb(); db.transaction('kv','readwrite').objectStore('kv').put(v,k); }catch(e){} }
+async function kvGet(k){ try{ const db = await idb(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); }catch(e){ return null; } }
+async function* walk(dir, path=''){
+  for await (const [name, h] of dir.entries()){
+    if (h.kind === 'file' && /\.xlsx?$/i.test(name) && !name.startsWith('~$')) yield { h, path: path + name };
+    else if (h.kind === 'directory') yield* walk(h, path + name + '/');
+  }
+}
+async function processFiles(list){
+  const results = [], errors = [];
+  let nuevos = 0;
+  for (const f of list){
+    const key = f.path + '|' + f.lastModified;
+    let arr = state.cache.get(key);
+    if (!arr){
+      try{
+        const wb = XLSX.read(await f.getBuf(), { type:'array' });
+        arr = parseWorkbook(wb, f.name).map(T => { const R = evaluateTrip(T); R.path = f.path; R.key = f.path + '#' + R.id; return R; });
+        state.cache.set(key, arr); nuevos++;
+      }catch(e){ errors.push({ file:f.path, msg:e.message }); continue; }
+    }
+    results.push(...arr);
+  }
+  // Si el mismo viaje está en dos archivos, se conserva el archivo más reciente
+  const byTrip = new Map();
+  for (const R of results){ const prev = byTrip.get(R.id); if (!prev || (R.fin||0) >= (prev.fin||0)) byTrip.set(R.id, R); }
+  state.results = [...byTrip.values()];
+  state.dups = results.length - state.results.length;
+  state.errors = errors; state.files = list.length; state.lastScan = new Date();
+  return nuevos;
+}
+async function scanDir(){
+  if (!state.dir || state.busy) return;
+  state.busy = true;
+  setStatus(`Consultando «${esc(state.dir.name)}»…`, true);
+  try{
+    const list = [];
+    for await (const { h, path } of walk(state.dir)){
+      const file = await h.getFile();
+      list.push({ name:file.name, path, lastModified:file.lastModified, getBuf:() => file.arrayBuffer() });
+    }
+    const nuevos = await processFiles(list);
+    setStatus(`Carpeta <b>«${esc(state.dir.name)}»</b> · ${list.length} archivo(s) · ${nuevos} nuevo(s) o modificado(s) · última consulta ${state.lastScan.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}`, true);
+  }catch(e){
+    setStatus(`No se pudo leer la carpeta: ${esc(e.message)}. Pulsa «Elegir carpeta» de nuevo.`, false);
+  }
+  state.busy = false;
+  afterScan();
+}
+function setStatus(html, on){ byId('status').innerHTML = `<span class="dot ${on?'on':''}"></span>${html}`; }
+function afterScan(){
+  byId('btnRescan').disabled = !state.dir && !state.fallback;
+  fillFilters(); render();
+}
+byId('btnPick').onclick = async () => {
+  if (window.showDirectoryPicker){
+    try{
+      state.dir = await window.showDirectoryPicker({ id:'trazabilidad', mode:'read' });
+      state.cache.clear(); await kvSet('dir', state.dir);
+      byId('btnReconnect').style.display = 'none';
+      await scanDir();
+    }catch(e){ if (e.name !== 'AbortError') alert(e.message); }
+  } else byId('fallback').click();
+};
+byId('fallback').onchange = async e => {
+  const files = [...e.target.files].filter(f => /\.xlsx?$/i.test(f.name) && !f.name.startsWith('~$'));
+  state.fallback = true; state.cache.clear();
+  await processFiles(state.fbList = files.map(f => ({ name:f.name, path:f.webkitRelativePath || f.name, lastModified:f.lastModified, getBuf:() => f.arrayBuffer() })));
+  setStatus(`${files.length} archivo(s) leídos · este navegador no permite consultar la carpeta automáticamente; usa Chrome o Edge para eso`, false);
+  afterScan();
+  e.target.value = '';
+};
+byId('btnRescan').onclick = () => state.dir ? scanDir() : byId('fallback').click();
+byId('btnReconnect').onclick = async () => {
+  const h = await kvGet('dir'); if (!h) return;
+  try{
+    if ((await h.requestPermission({ mode:'read' })) === 'granted'){ state.dir = h; byId('btnReconnect').style.display = 'none'; await scanDir(); }
+  }catch(e){ alert('No se pudo reabrir la carpeta. Elígela de nuevo.'); }
+};
+(async () => {
+  if (!window.showDirectoryPicker) return;
+  const h = await kvGet('dir');
+  if (h){
+    try{ if ((await h.queryPermission({ mode:'read' })) === 'granted'){ state.dir = h; await scanDir(); return; } }catch(e){}
+    const b = byId('btnReconnect'); b.textContent = `↺ Reabrir «${h.name}»`; b.style.display = '';
+    setStatus(`Última carpeta: <b>«${esc(h.name)}»</b> · pulsa «Reabrir» para volver a consultarla`, false);
+  }
+})();
+let autoTimer = null;
+function setAuto(){
+  clearInterval(autoTimer);
+  if (byId('auto').checked) autoTimer = setInterval(() => { if (state.dir && !document.hidden) scanDir(); }, +byId('autoMin').value * 60000);
+}
+byId('auto').onchange = setAuto; byId('autoMin').onchange = setAuto;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.dir && byId('auto').checked && (!state.lastScan || Date.now() - state.lastScan > 60000)) scanDir(); });
+setAuto();
+// Casilla: no calificar exceso de velocidad (se recuerda en este navegador)
+try{ const v = localStorage.getItem('velOff'); if (v !== null) CONFIG.ignorarVelocidad = v === '1'; }catch(e){}
+byId('velOff').checked = CONFIG.ignorarVelocidad;
+byId('velOff').onchange = async () => {
+  CONFIG.ignorarVelocidad = byId('velOff').checked;
+  try{ localStorage.setItem('velOff', CONFIG.ignorarVelocidad ? '1' : '0'); }catch(e){}
+  state.cache.clear();
+  if (state.dir) await scanDir();
+  else if (state.fbList){ await processFiles(state.fbList); afterScan(); }
+};
+
+// ---------- Filtros ----------
+const FILTERS = ['fTrip','fOp','fGrade','fText'];
+function fillFilters(){
+  const keep = { t:byId('fTrip').value, o:byId('fOp').value };
+  const trips = state.results.slice().sort((a,b) => String(a.id).localeCompare(String(b.id), undefined, { numeric:true }));
+  byId('fTrip').innerHTML = '<option value="">Todos los viajes</option>' + trips.map(t => `<option value="${esc(t.key)}">${esc(t.id)}${t.excluded?' · EXCLUIDO':''}</option>`).join('');
+  const ops = [...new Set(state.results.flatMap(t => t.records.filter(r => !r.auto).map(r => r.atendida)))].sort();
+  byId('fOp').innerHTML = '<option value="">Todos los operarios</option>' + ops.map(o => `<option>${esc(o)}</option>`).join('');
+  if ([...byId('fTrip').options].some(o => o.value === keep.t)) byId('fTrip').value = keep.t;
+  if ([...byId('fOp').options].some(o => o.value === keep.o)) byId('fOp').value = keep.o;
+}
+function current(){
+  const trip = byId('fTrip').value, op = byId('fOp').value, grade = byId('fGrade').value, q = norm(byId('fText').value);
+  return state.results.filter(t =>
+    (!trip || t.key === trip) &&
+    (!grade || gradeOf(t) === grade) &&
+    (!op || t.records.some(r => !r.auto && r.atendida === op)) &&
+    (!q || t.records.some(r => (r.tipoN + ' ' + r.alarmaN + ' ' + r.gestionN + ' ' + norm(r.atendida)).includes(q)) || norm(t.id).includes(q)));
+}
+FILTERS.forEach(id => byId(id).addEventListener('input', render));
+byId('reset').onclick = () => { FILTERS.forEach(id => byId(id).value = ''); render(); };
+
+// ---------- Render ----------
+function render(){
+  const app = byId('app');
+  if (!state.results.length){
+    app.innerHTML = `<section class="panel empty"><p style="font-size:40px;margin:0">📂</p><p><b>Elige la carpeta donde guardas las bitácoras exportadas de Controlt.</b></p>
+      <p>Se leen todos los .xlsx de la carpeta y sus subcarpetas. El análisis se hace en tu equipo; nada se envía a internet.<br>Mientras la página esté abierta, la carpeta se vuelve a consultar sola y se evalúan los archivos nuevos o modificados.</p>
+      <p class="small">Funciona mejor en Chrome o Edge.</p></section>` + errorsHtml();
+    return;
+  }
+  const trips = current(), valid = trips.filter(t => !t.excluded), p = avg(valid.map(t => t.total));
+  let h = `<div class="kpis">${[
+    ['Viajes procesados', trips.length], ['Viajes válidos', valid.length],
+    ['Puntaje promedio', valid.length ? p.toFixed(1) + '/100' : '—']
+  ].map(([l,n]) => `<div class="kpi"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>`;
+  h += panel1(trips, valid) + panel2(trips, valid) + panel3(valid) + panel4(valid) + panel5(valid);
+  const regs = state.results.reduce((s,t) => s + t.records.length, 0);
+  h += errorsHtml();
+  h += `<p class="foot">Fuentes: ${state.files} archivo(s) Excel de bitácora (${regs.toLocaleString('es-CO')} registros)${state.dir ? ` en la carpeta «${esc(state.dir.name)}»` : ''}${state.dups ? ` · ${state.dups} viaje(s) repetido(s) en varios archivos (se usa el más reciente)` : ''}. Orden de análisis: FECHA - HORA ATENCIÓN. Criterios v8.2 (25% c/u). Última consulta: ${state.lastScan ? fdt(state.lastScan) : '—'}.</p>`;
+  app.innerHTML = h;
+  app.querySelectorAll('[data-k]').forEach(el => el.onclick = () => openTrip(el.dataset.k));
+}
+function errorsHtml(){
+  let h = '';
+  if (state.errors.length) h += `<div class="notice"><b>Archivos que no se pudieron leer (${state.errors.length}):</b><br>${state.errors.map(e => `${esc(e.file)} — ${esc(e.msg)}`).join('<br>')}</div>`;
+  const mc = state.results.filter(r => r.missingCols && r.missingCols.length);
+  if (mc.length) h += `<div class="notice"><b>Archivos con columnas no encontradas:</b><br>${mc.map(r => `${esc(r.path)} — falta: ${r.missingCols.join(', ')}`).join('<br>')}</div>`;
+  return h;
+}
+function criterionBars(valid){
+  return barRows([['Secuencia','sec'],['Tiempos','tie'],['Alarmas','ala'],['Cierre','cie']].map(([l,k]) => { const v = avg(valid.map(t => t.scores[k])); return [l, v, barColor(v)]; }));
+}
+function panel1(trips, valid){
+  const names = ['Excelente','Bueno','Regular','Deficiente','Muy deficiente'];
+  const gc = names.map(g => [g, valid.filter(t => gradeOf(t) === g).length, g==='Excelente'||g==='Bueno' ? 'good' : g==='Regular' ? 'warn' : 'bad']);
+  const dates = {};
+  valid.forEach(t => { if (!t.inicio) return; const d = new Date(t.inicio.getFullYear(), t.inicio.getMonth(), t.inicio.getDate()); (dates[+d] ??= []).push(t.total); });
+  const trend = Object.entries(dates).sort((a,b) => a[0]-b[0]);
+  return `<section class="panel"><div class="head"><h2>Panel 1 · Resumen general</h2><span class="sub">${trips.flatMap(t=>t.records).length.toLocaleString('es-CO')} registros visibles · promedio excluye viajes no evaluables</span></div>
+  <div class="grid2"><div><h3>Distribución por calificación</h3><div class="bars">${barRows(gc, Math.max(1, valid.length), 0)}</div></div><div><h3>Promedio por criterio (sobre 25)</h3><div class="bars">${criterionBars(valid)}</div></div></div>
+  <div style="margin-top:18px"><h3>Tendencia del puntaje promedio por fecha de inicio del viaje</h3><div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Viajes</th><th>Promedio</th><th style="width:45%"></th></tr></thead><tbody>
+  ${trend.map(([d,v]) => { const m = avg(v); return `<tr><td>${fmt(new Date(+d))}</td><td>${v.length}</td><td class="score">${m.toFixed(1)}</td><td><div class="barbg"><div class="bar ${barColor(m,100)}" style="width:${m}%"></div></div></td></tr>`; }).join('') || '<tr><td colspan="4" class="muted">Sin fechas</td></tr>'}
+  </tbody></table></div></div>
+  <div class="notice">Los puntajes son una evaluación automática basada en reglas y en el texto de las bitácoras. Haz clic en un viaje del ranking para ver su tarjeta y la bitácora completa antes de tomar decisiones de desempeño.</div></section>`;
+}
+function hallazgosCortos(t){
+  const f = t.findings.filter(x => x.nivel !== 'ok');
+  if (!f.length) return 'Sin hallazgos detectados';
+  const c = {}; f.forEach(x => c[x.tag] = (c[x.tag]||0) + 1);
+  return Object.entries(c).sort((a,b) => (f.find(x=>x.tag===b[0]).nivel==='crit') - (f.find(x=>x.tag===a[0]).nivel==='crit') || b[1]-a[1]).slice(0,3).map(([k,n]) => (TAG_LABEL[k]||k) + (n>1?` (${n})`:'')).join('; ');
+}
+function panel2(trips, valid){
+  const rank = valid.slice().sort((a,b) => b.total - a.total);
+  const ex = trips.filter(t => t.excluded);
+  return `<section class="panel"><div class="head"><h2>Panel 2 · Ranking de viajes</h2><span class="sub">Mejor a peor; clic en un viaje para ver su tarjeta. Los excluidos se muestran aparte y no entran en promedios.</span></div>
+  <div class="tablewrap"><table><thead><tr><th>Viaje</th><th>Fecha</th><th>Secuencia</th><th>Tiempos</th><th>Alarmas</th><th>Cierre</th><th>Total</th><th>Calificación</th><th>Estado / hallazgos</th></tr></thead><tbody>
+  ${rank.map((t,i) => `<tr class="click ${i===0&&rank.length>1?'best':i===rank.length-1&&rank.length>1?'worst':''}" data-k="${esc(t.key)}"><td><b>${esc(t.id)}</b></td><td>${fmt(t.inicio)}</td><td>${t.scores.sec.toFixed(1)}</td><td>${t.scores.tie.toFixed(1)}</td><td>${t.scores.ala.toFixed(1)}</td><td>${t.scores.cie.toFixed(1)}</td><td class="score">${t.total.toFixed(1)}</td><td>${pill(gradeOf(t))}</td><td>${esc(hallazgosCortos(t))}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Sin viajes válidos con los filtros actuales</td></tr>'}
+  </tbody></table></div>
+  <div style="margin-top:16px"><h3>Registro administrativo de viajes excluidos (sin puntaje, ranking ni promedios)</h3>
+  ${ex.length ? `<div class="tablewrap"><table><thead><tr><th>Viaje</th><th>Fecha</th><th>Estado</th><th>Motivo de exclusión</th></tr></thead><tbody>${ex.map(t => `<tr class="excludedrow click" data-k="${esc(t.key)}"><td>${esc(t.id)}</td><td>${fmt(t.inicio)}</td><td>Viaje excluido</td><td>${esc(t.excluded[0].toUpperCase()+t.excluded.slice(1))} — "${esc(t.excludedTipo)}"</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted" style="padding:10px">No hay viajes excluidos con los filtros actuales.</p>'}</div></section>`;
+}
+function opStats(valid){
+  const ops = {};
+  for (const t of valid){
+    for (const r of t.records){
+      if (r.auto) continue;
+      const s = ops[r.atendida] ??= { name:r.atendida, trips:new Set(), regs:0, types:{}, tags:{}, crit:0, clave:new Set(), alarm:{ n:0, ok:0, parcial:0, sin:0 } };
+      s.trips.add(t); s.regs++; s.types[r.tipo || 'Sin tipo'] = (s.types[r.tipo || 'Sin tipo']||0) + 1;
+      if (r.mark || RX.vf.test(r.tipoN)) s.clave.add(t);
+    }
+    for (const a of t.alarmas || []){ const s = ops[a.r.atendida]; if (!s) continue; s.alarm.n++; s.alarm[a.q]++; }
+    for (const f of t.findings){ if (!f.op || f.nivel === 'ok' || !ops[f.op]) continue; ops[f.op].tags[f.tag] = (ops[f.op].tags[f.tag]||0) + 1; if (f.nivel === 'crit') ops[f.op].crit++; }
+  }
+  return Object.values(ops).map(s => {
+    s.prom = avg([...s.trips].map(t => t.total));
+    const cpv = s.crit / s.trips.size, malas = s.alarm.parcial + s.alarm.sin;
+    s.calif = (cpv >= 1 || s.alarm.sin >= 3 || (s.alarm.n >= 4 && malas / s.alarm.n > .5)) ? 'Crítico' : (s.crit === 0 && malas === 0) ? 'Bueno' : 'Regular';
+    return s;
+  }).sort((a,b) => b.trips.size - a.trips.size || b.regs - a.regs);
+}
+function panel3(valid){
+  const S = opStats(valid);
+  const critTags = ['faltanteOp','faltante','simultaneo','tipoIncorrecto','alarmaSin','golpe','sinVF','prematuro','falla','duracion0'];
+  const mf = {};
+  for (const t of valid) for (const x of t.faltantesOp || []){
+    if (x.resp){ const o = mf[x.resp] ??= { r:0, c:0, trips:new Set(), marcas:{} }; o.r++; o.trips.add(t); o.marcas[x.marca] = (o.marcas[x.marca]||0) + 1; }
+    if (x.co){ const o = mf[x.co] ??= { r:0, c:0, trips:new Set(), marcas:{} }; o.c++; o.trips.add(t); }
+  }
+  const sinEv = valid.reduce((n,t) => n + (t.faltantesOp||[]).filter(x => !x.resp).length, 0);
+  const mfRows = Object.entries(mf).sort((a,b) => b[1].r - a[1].r || b[1].c - a[1].c);
+  const mfHtml = `<h3>Tiempos logísticos no gestionados (marcas faltantes por operario)</h3>` + (mfRows.length ? `<div class="tablewrap" style="margin-bottom:14px"><table><thead><tr><th>Operario</th><th>Como responsable</th><th>Como corresponsable</th><th>Marcas que no registró</th><th>Viajes</th></tr></thead><tbody>
+    ${mfRows.map(([n,o]) => `<tr><td><b>${esc(n)}</b></td><td class="score">${o.r}</td><td>${o.c}</td><td>${esc(Object.entries(o.marcas).map(([m,c]) => m + ' ×' + c).join(' · ') || '—')}</td><td>${[...o.trips].map(t => `<span class="link" data-k="${esc(t.key)}">${esc(t.id)}</span>`).join(', ')}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="goodnote">Ningún operario con marcas faltantes atribuidas.</p>') +
+    `<p class="small" style="margin-top:-6px">Responsable: registró una novedad que demuestra que la operación ya había ocurrido (ej. Proceso o Finaliza descargue) y no dejó la marca. Corresponsable: atendió justo antes en esa etapa (Llegada, Enturnado). ${sinEv ? sinEv + ' marca(s) sin evidencia no se atribuyen a nadie.' : ''}</p>`;
+  return `<section class="panel"><div class="head"><h2>Panel 3 · Desempeño por operario</h2><span class="sub">Solo incluye registros atribuidos a personas; los automáticos quedan fuera.</span></div>${mfHtml}<h3>Detalle por operario</h3><div class="opgrid">
+  ${S.map(s => { const tags = Object.entries(s.tags).sort((a,b) => b[1]-a[1]);
+    return `<div class="operator-card"><div class="head" style="margin-bottom:4px"><h3>${esc(s.name)}</h3>${pill(s.calif)}</div>
+    <div class="tags"><span class="tag">${s.trips.size} viaje(s)</span><span class="tag">${s.regs} registros humanos</span><span class="tag">${s.alarm.n} alarmas gestionables</span><span class="tag">✅ ${s.alarm.ok} · 🟡 ${s.alarm.parcial} · 🔴 ${s.alarm.sin}</span><span class="tag">Prom. viajes ${s.prom.toFixed(1)}</span></div>
+    <div><b>Principales novedades:</b> ${esc(Object.entries(s.types).sort((a,b) => b[1]-a[1]).slice(0,7).map(([k,v]) => `${k} (${v})`).join(' · '))}</div>
+    <div style="margin-top:5px"><b>Hallazgos recurrentes:</b> ${tags.length ? tags.map(([t,n]) => `${critTags.includes(t)?'🔴':'🟡'} ${esc(TAG_LABEL[t]||t)} ×${n}`).join(' · ') : '🟢 Sin hallazgos atribuidos'}</div>
+    <div style="margin-top:5px"><b>Intervenciones en momentos clave:</b> ${[...s.clave].map(t => `<span class="link" data-k="${esc(t.key)}">${esc(t.id)}</span>`).join(', ') || 'No identificadas'}</div></div>`; }).join('') || '<p class="muted">No hay registros de operarios para los filtros seleccionados.</p>'}
+  </div><p class="small">La calificación cualitativa sale de la detección automática de hallazgos y alarmas; valídala antes de usarla como evaluación laboral.</p></section>`;
+}
+function panel4(valid){
+  const freq = {};
+  for (const t of valid) new Set(t.findings.filter(f => f.nivel !== 'ok').map(f => f.tag)).forEach(k => freq[k] = (freq[k]||0) + 1);
+  const F = Object.entries(freq).sort((a,b) => b[1]-a[1]);
+  const pr = Object.keys(CRIT).map(k => [k, avg(valid.map(t => t.scores[k]))]);
+  const peor = valid.length ? pr.reduce((a,b) => a[1] <= b[1] ? a : b) : null;
+  return `<section class="panel"><div class="head"><h2>Panel 4 · Análisis por criterio</h2><span class="sub">Hallazgos detectados en los viajes válidos del filtro actual.</span></div>
+  <div class="grid2"><div><h3>Promedio por criterio</h3><div class="bars">${criterionBars(valid)}</div>${peor ? `<div class="notice" style="margin-top:14px"><b>Criterio que más falla:</b> ${CRIT[peor[0]]} — promedio ${peor[1].toFixed(1)}/25, con pérdida en ${valid.filter(t => t.scores[peor[0]] < 25).length} de ${valid.length} viajes.</div>` : ''}</div>
+  <div><h3>Frecuencia de hallazgos (viajes afectados)</h3><div class="bars">${F.length ? barRows(F.map(([k,n]) => [TAG_LABEL[k]||k, n, 'bad']), Math.max(1, valid.length), 0) : '<p class="goodnote">Sin hallazgos en los viajes filtrados.</p>'}</div></div></div>
+</section>`;
+}
+function panel5(valid){
+  const byTag = {};
+  for (const t of valid) for (const f of t.findings){ if (f.nivel === 'ok') continue; const b = byTag[f.tag] ??= { trips:new Set(), ops:new Set() }; b.trips.add(t.id); if (f.op) b.ops.add(f.op); }
+  const trans = Object.entries(byTag).filter(([,b]) => b.trips.size >= 2 && b.ops.size >= 2).sort((a,b) => b[1].trips.size - a[1].trips.size);
+  const riesgo = valid.flatMap(t => t.findings.filter(f => ['golpe','alarmaSin'].includes(f.tag)).map(f => [t,f]));
+  const sinMarcas = valid.filter(t => t.scores.tie === 0);
+  const prem = valid.filter(t => t.prematuro);
+  const lst = (a, fn) => a.length ? `<div class="crit-list">${a.map(fn).join('')}</div>` : '<p class="goodnote">Ninguno con los filtros actuales.</p>';
+  return `<section class="panel"><div class="head"><h2>Panel 5 · Hallazgos críticos transversales</h2><span class="sub">Patrones del equipo y riesgos que requieren acción.</span></div>
+  <div class="grid2">
+   <div><h3>Patrones del equipo (≥2 viajes y ≥2 operarios)</h3>${lst(trans, ([k,b]) => `<div class="crit-item"><b>🔴 ${esc(TAG_LABEL[k]||k)}</b><span class="small">${b.trips.size} viajes · ${b.ops.size} operarios: ${[...b.ops].map(esc).join(', ')}</span></div>`)}</div>
+   <div><h3>Alarmas de mayor riesgo sin gestión o sin protocolo</h3>${lst(riesgo, ([t,f]) => `<div class="crit-item click" data-k="${esc(t.key)}" style="cursor:pointer"><b>🔴 Viaje ${esc(t.id)}</b><span class="small">${esc(f.texto)}${f.op ? ' · ' + esc(f.op) : ''}</span></div>`)}</div>
+   <div><h3>Viajes con cargue o descargue sin documentar</h3>${lst(sinMarcas, t => `<div class="crit-item click" data-k="${esc(t.key)}" style="cursor:pointer"><b>🔴 Viaje ${esc(t.id)}</b><span class="small">${esc(t.findings.find(f => f.tag==='faltante')?.texto || '')}</span>${(t.faltantesOp||[]).map(x => `<span class="small" style="display:block">• ${esc(x.marca)}: ${x.resp ? 'responsable <b>' + esc(x.resp) + '</b> (registró ' + esc(x.evid) + ')' : 'sin evidencia para atribuir'}${x.co ? ' · corresponsable ' + esc(x.co) : ''}</span>`).join('')}</div>`)}</div>
+   <div><h3>Viajes cerrados prematuramente</h3>${lst(prem, t => `<div class="crit-item click" data-k="${esc(t.key)}" style="cursor:pointer"><b>🔴 Viaje ${esc(t.id)}</b><span class="small">Viaje Finalizado ${-t.cierreMin} min antes de la entrega real</span></div>`)}</div>
+  </div></section>`;
+}
+
+// ---------- Tarjeta de viaje ----------
+const GCOLOR = { 'Excelente':'#18835b','Bueno':'#3a9b5c','Regular':'#b97813','Deficiente':'#d0632a','Muy deficiente':'#c53b48','Excluido':'#64748b' };
+function openTrip(k){
+  const R = state.results.find(r => r.key === k); if (!R) return;
+  const g = gradeOf(R);
+  let h = `<div class="banner" style="background:${GCOLOR[g]}"><div><div style="font-size:12px;opacity:.85">VIAJE</div><div style="font-size:24px;font-weight:800">${esc(R.id)}</div>
+    <div style="font-size:13px;opacity:.92">${fdt(R.inicio)} → ${fdt(R.fin)}${R.placa?' · '+esc(R.placa):''}${R.conductor?' · '+esc(R.conductor):''}</div><div style="font-size:12px;opacity:.8">${esc(R.path)}</div></div>
+    <div style="text-align:right">${R.excluded ? `<div style="font-size:20px;font-weight:800">EXCLUIDO</div><div>${esc(R.excluded)}</div>` : `<div class="big">${R.total.toFixed(2)}</div><div style="font-weight:800">${g.toUpperCase()}</div>`}
+    <button class="closex" onclick="closeModal()" style="margin-top:8px">Cerrar ✕</button></div></div><div class="body">`;
+  if (R.excluded){
+    h += `<div class="ccard">Viaje excluido — ${esc(R.excluded)}: aparece la novedad "<b>${esc(R.excludedTipo)}</b>". No recibe puntaje ni entra en ranking o promedios.</div>`;
+  } else {
+    h += `<div class="grid2">${Object.keys(CRIT).map(c => { const s = R.scores[c], fs = R.findings.filter(f => f.crit === c);
+      return `<div class="ccard"><div class="top"><h3 style="margin:0">${CRIT[c]}</h3><span class="sc">${s}<span class="muted" style="font-size:13px">/25</span></span></div>
+      <div class="barbg" style="margin:8px 0"><div class="bar ${barColor(s)}" style="width:${s/25*100}%"></div></div>
+      ${fs.map(f => `<div class="find">${ICON[f.nivel]} ${esc(f.texto)}${f.op?` <span class="muted">· ${esc(f.op)}</span>`:''}</div>`).join('') || '<div class="find">🟢 Sin hallazgos</div>'}
+      ${c==='tie' && (R.durCargue!=null || R.durDescargue!=null) ? `<div class="small" style="margin-top:4px">Duración cargue: ${R.durCargue ?? '—'} min · descargue: ${R.durDescargue ?? '—'} min</div>` : ''}
+      ${c==='ala' && R.alarmas.length ? `<div class="small" style="margin-top:4px">${R.alarmas.length} alarma(s) gestionable(s): ${R.alarmas.filter(a=>a.q==='ok').length} válidas · ${R.alarmas.filter(a=>a.q==='parcial').length} parciales · ${R.alarmas.filter(a=>a.q==='sin').length} sin gestión</div>` : ''}</div>`; }).join('')}</div>
+    <div class="ccard" style="margin-top:12px"><h3>Acciones correctivas</h3>${accionesDe(R).map(([n,t]) => `<div class="act c${{'Crítico':0,'Importante':1,'Leve':2,'Buena práctica':3}[n]}"><b>${n}:</b> ${esc(t)}</div>`).join('') || '<p class="muted">Sin acciones.</p>'}</div>`;
+  }
+  h += `<details class="ccard" style="margin-top:12px"><summary>Bitácora completa (${R.records.length} registros, ordenada por FECHA - HORA ATENCIÓN)</summary><div class="tablewrap" style="margin-top:8px"><table>
+    <thead><tr><th>Atención</th><th>Novedad</th><th>Tipo de novedad</th><th>Alarma</th><th>Atendida por</th><th>Gestión</th></tr></thead><tbody>
+    ${R.records.map(r => `<tr style="${r.auto?'opacity:.55':''}"><td>${fdt(r.tAt)}</td><td>${fdt(r.tNov)}</td><td>${esc(r.tipo)}${r.mark?r.mark.map(m=>`<span class="badge">${({ic:'IC',fc:'FC',id:'ID',fd:'FD'})[m]}</span>`).join(''):''}${RX.vf.test(r.tipoN)?'<span class="badge">VF</span>':''}</td><td>${esc(r.alarma)}</td><td>${esc(r.atendida || '(vacío)')}</td><td class="wrap">${esc(r.gestion.replace(/_x000d_/gi,' '))}</td></tr>`).join('')}
+    </tbody></table></div><p class="small">Atenuados = automáticos (no evaluados). IC/FC/ID/FD = marca reconocida como inicio/fin de cargue/descargue; VF = Viaje Finalizado.</p></details></div>`;
+  byId('sheet').innerHTML = h;
+  byId('modal').classList.add('on');
+}
+function closeModal(){ byId('modal').classList.remove('on'); }
+byId('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ---------- Exportar ----------
+byId('csv').onclick = () => {
+  const rows = current().sort((a,b) => (b.total??-1) - (a.total??-1));
+  const head = ['Viaje','Fecha','Secuencia','Tiempos','Alarmas','Cierre','Total','Calificacion','Estado / hallazgos','Archivo'];
+  const csv = [head, ...rows.map(t => [t.id, fmt(t.inicio), t.excluded?'':t.scores.sec, t.excluded?'':t.scores.tie, t.excluded?'':t.scores.ala, t.excluded?'':t.scores.cie, t.excluded?'':t.total, gradeOf(t),
+    t.excluded ? 'Excluido: ' + t.excluded : t.findings.filter(f => f.nivel !== 'ok').map(f => f.texto).join(' | '), t.path])]
+    .map(r => r.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' }));
+  a.download = 'ranking_trazabilidad.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  /* Elegant blue palette */
+  --bg: #f4f7fc;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f8fafd;
+  --border: #dde6f1;
+  --border-strong: #c7d4e5;
+  --text: #0a1628;
+  --text-muted: #5b6b84;
+  --text-dim: #8a97ad;
+
+  /* Brand — ControlT elegant */
+  --brand-50: #e8f0fc;
+  --brand-100: #c8dcf7;
+  --brand-200: #94baeb;
+  --brand-300: #5c93dc;
+  --brand-400: #2d6ac9;
+  --brand-500: #0b4ca8;      /* primary */
+  --brand-600: #083c89;
+  --brand-700: #06306e;
+  --brand-800: #04234f;
+  --brand-900: #0a1628;      /* deep navy */
+
+  --accent-500: #ff6b2c;     /* ControlT orange */
+  --accent-600: #e85a1f;
+  --accent-400: #ff8a4c;
+
+  --ok: #0f9f72;
+  --ok-bg: #d7f5e9;
+  --warn: #c47f1a;
+  --warn-bg: #fdf1d1;
+  --bad: #c73247;
+  --bad-bg: #ffdfe2;
+
+  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(10, 22, 40, 0.05), 0 1px 3px rgba(10, 22, 40, 0.08);
+  --shadow-md: 0 4px 8px rgba(10, 22, 40, 0.06), 0 2px 4px rgba(10, 22, 40, 0.1);
+  --shadow-lg: 0 20px 40px rgba(10, 22, 40, 0.12);
+  --shadow-brand: 0 10px 30px rgba(11, 76, 168, 0.25);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #060b17;
+  --bg-elev: #0b1424;
+  --surface: #0f1b30;
+  --surface-2: #142540;
+  --border: #1d2e4d;
+  --border-strong: #2a4269;
+  --text: #e6edf8;
+  --text-muted: #92a3bf;
+  --text-dim: #6a7a95;
+
+  --brand-50: #11223e;
+  --brand-100: #15304f;
+  --brand-200: #1c3f69;
+  --brand-300: #2b5590;
+  --brand-400: #4679c0;
+  --brand-500: #6a97db;      /* primary (lighter for dark mode contrast) */
+  --brand-600: #4679c0;
+  --brand-700: #2b5590;
+  --brand-800: #1c3f69;
+  --brand-900: #e6edf8;
+
+  --ok: #26c48d;
+  --ok-bg: rgba(38, 196, 141, 0.15);
+  --warn: #ebb256;
+  --warn-bg: rgba(235, 178, 86, 0.15);
+  --bad: #ff5f73;
+  --bad-bg: rgba(255, 95, 115, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.6);
+  --shadow-brand: 0 10px 30px rgba(106, 151, 219, 0.25);
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--text); margin: 0; }
+body { font: 14px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+@layer components {
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .card-elev { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 14px;
+    transition: transform .05s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+    border: 1px solid transparent; cursor: pointer; user-select: none;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn-primary { background: var(--brand-500); color: white; box-shadow: var(--shadow-brand); }
+  .btn-primary:hover:not(:disabled) { background: var(--brand-600); }
+  .btn-accent { background: var(--accent-500); color: white; box-shadow: 0 10px 25px rgba(255, 107, 44, 0.3); }
+  .btn-accent:hover:not(:disabled) { background: var(--accent-600); }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border-strong); }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface-2); }
+  .btn-subtle { background: var(--surface-2); color: var(--text); }
+  .btn-subtle:hover:not(:disabled) { background: var(--brand-50); color: var(--brand-500); }
+
+  .input {
+    width: 100%; padding: 12px 14px; border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--border-strong); color: var(--text); font: inherit; outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .input:focus { border-color: var(--brand-500); box-shadow: 0 0 0 3px rgba(11, 76, 168, 0.15); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-bad { background: var(--bad-bg); color: var(--bad); }
+  .pill-neutral { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  .grade-Excelente, .grade-Bueno { background: var(--ok-bg); color: var(--ok); }
+  .grade-Regular { background: var(--warn-bg); color: var(--warn); }
+  .grade-Deficiente, .grade-Muydeficiente { background: var(--bad-bg); color: var(--bad); }
+  .grade-Excluido { background: var(--surface-2); color: var(--text-muted); }
+}
+
+/* Animated gradient for login hero + headers */
+.hero-gradient {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 107, 44, 0.25), transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(44, 125, 220, 0.3), transparent 55%),
+    linear-gradient(135deg, #061024 0%, #0a1e42 45%, #0e2d64 100%);
+  position: relative; overflow: hidden;
+}
+/* Grid overlay only on larger screens (expensive on mobile GPUs) */
+@media (min-width: 1024px) {
+  .hero-gradient::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(circle at center, black 30%, transparent 75%);
+  }
+}
+
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.fade-in { animation: fadeIn .25s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.pulse-dot { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: .5; transform: scale(.9); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Scrollbars (optional nicety) */
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--brand-300); }
+*::-webkit-scrollbar-track { background: transparent; }
