@@ -288,6 +288,40 @@ const label = { 0: 'Crítica', 1: 'Alta', 2: 'Media', 3: 'Baja' }[event.priority
 
 Para identificar si un registro de bitácora es alarma real: `priority !== null` o `type_services === "Alarm"`.
 
+### 4.X Viajes por monitorear (programados, aún no activados)
+
+```http
+GET /Home/travelsForUI?search={q}&size={n}&page={p}
+```
+
+Devuelve los viajes que están **asignados pero aún no han salido** (los que se ven en la vista `/home/tripsToMonitor` de la UI).
+
+Respuesta:
+```json
+{
+  "info": { "count": 236, "page": 1, "pages": 5, ... },
+  "result": [
+    {
+      "id_monitoring_order": "7230457",
+      "trip_number": "0101212743",
+      "company_customer_name": "...",
+      "id_company_customer": 123,
+      "city_origin": "BUENAVENTURA",
+      "city_destination": "PALMIRA",
+      "license_plate": "SYU930",
+      "driver_name": "NELSON SANDOVAL VA…",
+      "origin_address": "CRA 11 BUENAVENTURA VALLE DEL CAUCA",
+      "schedulate_origin": "",
+      "id_company": 616346,
+      "latest_gps_report": "...",
+      "latest_gps_report_Controlt": "..."
+    }
+  ]
+}
+```
+
+**Campo relevante**: `schedulate_origin` = fecha/hora programada para que el viaje arranque desde el origen (cita de origen).
+
 ### 4.6 Información del viaje activo
 
 ```http
@@ -312,7 +346,30 @@ GET /Home/alarms/attend/count
 
 Devuelve el número del badge rojo del menú lateral.
 
-### 4.9 Columnas configurables de la tabla de resumen
+### 4.9 Citas pactadas (programación de origen y destino)
+
+Las citas pactadas que se ven en el modal "EDITAR VIAJE" (fecha y hora del Origen y del Destino) vienen en campos específicos de otros endpoints — **no hay un endpoint único de "citas" por viaje**.
+
+| Dato | Endpoint | Campo |
+|---|---|---|
+| Cita programada del **origen** de un viaje por monitorear | `GET /Home/travelsForUI?search={M}` | `schedulate_origin` (fecha/hora) |
+| Cita programada del **destino** + ETA de un viaje activo | `GET /Home/resumeForUI?search={M}` | `appointment_fulfillment` (texto humano:<br>"La fecha aproximada de llegada al Destino es DD/MM/YYYY HH:mm:ss y la fecha programada es DD/MM/YYYY HH:mm:ss") |
+| Estado del cumplimiento | `GET /Home/resumeForUI` | `appointment_fulfillment_state`, `description_state_next_point` (ej. "A TIEMPO") |
+| Cantidad de paradas | `GET /Home/resumeForUI` | `stops` (como string, ej. `"2"`) |
+| Índice del próximo punto | `GET /Home/resumeForUI` | `state_next_point` (ej. `"1"`) |
+
+**Nota**: el modal "EDITAR VIAJE" muestra Origen + Destino con sus citas respectivas en una interfaz estructurada, pero según la captura de tráfico solo dispara `GET /Hub/CurrentPosition/{placa}` al abrirse. Las fechas por parada individual se renderizan con datos que la SPA probablemente carga desde `resumeForUI` + `travelsForUI` y combina en memoria. Para reconstruir el objeto "Origen + fecha / Destino + fecha" desde la API hay que parsear el texto de `appointment_fulfillment` (regex) o cruzar `travelsForUI.schedulate_origin` con el texto de la cita de destino.
+
+Ejemplo de parser para `appointment_fulfillment`:
+```js
+const m = trip.appointment_fulfillment.match(
+  /llegada al Destino es (\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}).*programada es (\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2})/
+);
+const etaDestino = m ? m[1] : null;         // fecha aproximada de llegada
+const citaDestino = m ? m[2] : null;         // fecha programada de cita
+```
+
+### 4.10 Columnas configurables de la tabla de resumen
 
 ```http
 GET /Home/resume/filter/ConfigurationColumns
